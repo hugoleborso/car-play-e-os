@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass, field
-from typing import Iterator, Optional
+from typing import Iterable, Iterator, Optional
 
 # Flag bits in the second header byte.
 FLAG_FIRST = 1 << 0
@@ -120,6 +120,45 @@ def encode(
     return out
 
 
+def encode_prefragmented(
+    channel: int,
+    flags: int,
+    fragments: Iterable[bytes],
+    total_length: int,
+) -> list[bytes]:
+    """Frame fragments that were split before something transformed them.
+
+    Encryption forces the split to happen upstream of framing: the sender cuts
+    the *plaintext* into fragments and encrypts each one independently, so by
+    the time the framer sees the bytes the fragment boundaries are already
+    fixed and no longer relate to the announced total. ``encode`` cannot express
+    that, because it derives the total from the payload it is handed.
+
+    ``total_length`` is the size of the whole message before the transform.
+    """
+    chunks = list(fragments)
+    if not chunks:
+        raise ValueError("no fragments to frame")
+    if total_length < 0:
+        raise ValueError(f"bad total length: {total_length}")
+
+    semantic = flags & (FLAG_CONTROL | FLAG_ENCRYPTED)
+    if len(chunks) == 1:
+        return [_serialise(channel, semantic | FLAG_BULK, chunks[0], None)]
+
+    out: list[bytes] = []
+    for index, chunk in enumerate(chunks):
+        if len(chunk) > MAX_PAYLOAD:
+            raise ValueError(f"fragment {index} of {len(chunk)} bytes exceeds the length field")
+        frame_flags = semantic
+        if index == 0:
+            frame_flags |= FLAG_FIRST
+        if index == len(chunks) - 1:
+            frame_flags |= FLAG_LAST
+        out.append(_serialise(channel, frame_flags, chunk, total_length if index == 0 else None))
+    return out
+
+
 def _serialise(channel: int, flags: int, payload: bytes, total_length: Optional[int]) -> bytes:
     header = struct.pack("!BBH", channel, flags, len(payload))
     if total_length is not None:
@@ -155,7 +194,12 @@ class FrameDecoder:
         total_length = None
         if fragmented:
             (total_length,) = struct.unpack_from("!I", self._buffer, 4)
-            if total_length < payload_length:
+            # The two lengths are only comparable on a plaintext frame. On an
+            # encrypted one the payload length counts ciphertext in this frame
+            # while the total counts plaintext in the whole message, and TLS
+            # overhead makes the first legitimately exceed the second on a
+            # message that is barely over one fragment.
+            if not (flags & FLAG_ENCRYPTED) and total_length < payload_length:
                 raise FrameFormatError(
                     f"total length {total_length} smaller than first fragment "
                     f"{payload_length} on channel {channel}"
@@ -215,8 +259,19 @@ class MessageAssembler:
         self._partials: dict[int, _Partial] = {}
         self._max_message_bytes = max_message_bytes
 
-    def accept(self, frame: Frame) -> Optional[Message]:
+    def accept(self, frame: Frame, payload: Optional[bytes] = None) -> Optional[Message]:
+        """Fold one frame into its channel's message.
+
+        ``payload`` overrides the bytes carried by the frame and is how an
+        encrypted session drives reassembly: the caller decrypts the frame body
+        first and hands in the plaintext, keeping the frame header for the
+        channel and flag bits. That order is forced by the wire format --
+        fragment boundaries live in the plaintext, and the announced total
+        counts plaintext bytes, so reassembling ciphertext and checking it
+        against the total fails on every fragmented encrypted message.
+        """
         channel = frame.channel
+        body = frame.payload if payload is None else payload
 
         if frame.is_first and frame.is_last:
             if self._partials.pop(channel, None) is not None:
@@ -224,7 +279,7 @@ class MessageAssembler:
                     f"channel {channel} sent an unfragmented message while a "
                     "fragmented one was open"
                 )
-            return Message(channel, frame.flags, frame.payload)
+            return Message(channel, frame.flags, body)
 
         if frame.is_first:
             if frame.total_length is None:
@@ -234,8 +289,13 @@ class MessageAssembler:
                     f"message of {frame.total_length} bytes on channel {channel} exceeds cap"
                 )
             partial = _Partial(frame.total_length, frame.flags)
-            partial.chunks.append(frame.payload)
-            partial.received = len(frame.payload)
+            partial.chunks.append(body)
+            partial.received = len(body)
+            if partial.received > partial.total_length:
+                raise FrameFormatError(
+                    f"channel {channel} opened with {partial.received} bytes against an "
+                    f"announced total of {partial.total_length}"
+                )
             self._partials[channel] = partial
             return None
 
@@ -252,8 +312,8 @@ class MessageAssembler:
                 f"{describe_flags(partial.flags)} -> {describe_flags(frame.flags)}"
             )
 
-        partial.chunks.append(frame.payload)
-        partial.received += len(frame.payload)
+        partial.chunks.append(body)
+        partial.received += len(body)
         if partial.received > partial.total_length:
             del self._partials[channel]
             raise FrameFormatError(

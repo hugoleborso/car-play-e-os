@@ -65,7 +65,16 @@ public class FrameDecoder(initialCapacity: Int = 64 * 1024) {
         if (size < headerSize) return null
 
         val totalLength: Long? = if (fragmented) readUInt32(buffer, 4) else null
-        if (totalLength != null && totalLength < payloadLength) {
+        // The two lengths are only comparable on a plaintext frame. On an
+        // encrypted one the payload length counts this frame's ciphertext while
+        // the total counts the whole message's plaintext, so TLS overhead makes
+        // the first legitimately exceed the second whenever a message is barely
+        // longer than one fragment. Applying the check there would reject valid
+        // traffic.
+        if (totalLength != null &&
+            (flags and FrameFlags.ENCRYPTED == 0) &&
+            totalLength < payloadLength
+        ) {
             throw FrameFormatException(
                 "total length $totalLength smaller than first fragment $payloadLength on channel $channel"
             )

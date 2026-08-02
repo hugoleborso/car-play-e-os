@@ -1,0 +1,138 @@
+// Copyright 2026 The openaap authors.
+// Licensed under the Apache License, Version 2.0.
+//
+// Control-namespace messages. Names and field numbers are this
+// implementation's own; see the header of media.proto.
+//
+// The version exchange (ids 0x0001/0x0002) is deliberately absent: it is raw
+// big-endian uint16s, not protobuf, and lives in wire.py.
+
+syntax = "proto2";
+
+package openaap.hu.v1;
+
+import "descriptors.proto";
+
+enum LinkKind {
+  LINK_UNSET = 0;
+  LINK_WIRED = 1;
+  LINK_WIRELESS = 2;
+}
+
+enum ShutdownCause {
+  SHUTDOWN_UNSET = 0;
+  SHUTDOWN_USER = 1;
+  SHUTDOWN_DEVICE_OFF = 2;
+  SHUTDOWN_PROTOCOL_ERROR = 3;
+}
+
+enum SoundFocusWant {
+  SOUND_WANT_UNSET = 0;
+  SOUND_WANT_HOLD = 1;
+  SOUND_WANT_HOLD_BRIEF = 2;
+  SOUND_WANT_HOLD_DUCKED = 3;
+  SOUND_WANT_RELEASE = 4;
+}
+
+enum SoundFocusState {
+  SOUND_STATE_UNSET = 0;
+  SOUND_STATE_HELD = 1;
+  SOUND_STATE_HELD_BRIEF = 2;
+  SOUND_STATE_RELEASED = 3;
+  SOUND_STATE_PREEMPTED = 4;
+  SOUND_STATE_DUCKED = 5;
+}
+
+enum RouteFocusWant {
+  ROUTE_WANT_UNSET = 0;
+  ROUTE_WANT_HOLD = 1;
+  ROUTE_WANT_RELEASE = 2;
+}
+
+// Head unit -> phone, id 0x0004. The go signal: the head unit declaring the
+// TLS session acceptable and the phone free to start discovery.
+message AuthCompleteNotice {
+  optional int32 outcome = 1;
+}
+
+// Phone -> head unit, id 0x0005.
+message ProfileQuery {
+  optional string phone_label = 1;
+}
+
+// Head unit -> phone, id 0x0006. The channel list is the authoritative map
+// from channel id to service for the rest of the session.
+message ProfileAnnouncement {
+  repeated ChannelEntry channel = 1;
+  optional string unit_label = 2;
+  optional string maker = 3;
+  optional string model = 4;
+  optional string model_year = 5;
+  optional string vehicle_id = 6;
+  optional bool left_hand_drive = 7;
+  optional string software_build = 8;
+  optional string software_version = 9;
+  optional bool plays_native_media = 10;
+  optional string display_label = 11;
+  optional LinkKind link = 12;
+}
+
+// Phone -> head unit, id 0x0007. Sent *on the channel being opened*, with the
+// control flag set, not on channel 0.
+message ChannelJoinRequest {
+  optional int32 priority = 1;
+  optional uint32 channel_id = 2;
+}
+
+// Head unit -> phone, id 0x0008.
+message ChannelJoinReply {
+  optional int32 outcome = 1;
+  optional uint32 channel_id = 2;
+}
+
+// Head unit -> phone, id 0x000b.
+message HeartbeatRequest {
+  optional int64 stamp_ns = 1;
+  optional bytes filler = 2;
+}
+
+// Phone -> head unit, id 0x000c. The stamp must come back unchanged.
+message HeartbeatReply {
+  optional int64 stamp_ns = 1;
+  optional bytes filler = 2;
+}
+
+// Phone -> head unit, id 0x000d.
+message RouteFocusRequest {
+  optional RouteFocusWant wanted = 1;
+}
+
+// Head unit -> phone, id 0x000e.
+message RouteFocusReply {
+  optional RouteFocusWant granted = 1;
+}
+
+// Either direction, id 0x000f.
+message TeardownRequest {
+  optional ShutdownCause cause = 1;
+}
+
+// Either direction, id 0x0010.
+message TeardownReply {
+}
+
+// Phone -> head unit, id 0x0011. No reply is defined.
+message VoiceSessionNotice {
+  optional int32 phase = 1;
+}
+
+// Phone -> head unit, id 0x0012.
+message SoundFocusRequest {
+  optional SoundFocusWant wanted = 1;
+}
+
+// Head unit -> phone, id 0x0013.
+message SoundFocusReply {
+  optional SoundFocusState state = 1;
+  optional bool unprompted = 2;
+}

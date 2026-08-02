@@ -1,0 +1,93 @@
+// Copyright 2026 The openaap authors.
+// Licensed under the Apache License, Version 2.0.
+//
+// Sensor channel messages. Names and field numbers are this implementation's
+// own; see the header of media.proto.
+
+syntax = "proto2";
+
+package openaap.hu.v1;
+
+// The catalogue a head unit may advertise. Only the handful a 2017 MIB2 is
+// documented to publish are modelled with a payload message below; the rest
+// exist so a descriptor can name them.
+enum SensorKind {
+  SENSOR_UNSET = 0;
+  SENSOR_POSITION = 1;
+  SENSOR_HEADING = 2;
+  SENSOR_ROAD_SPEED = 3;
+  SENSOR_ENGINE_SPEED = 4;
+  SENSOR_DISTANCE = 5;
+  SENSOR_FUEL = 6;
+  SENSOR_PARK_BRAKE = 7;
+  SENSOR_TRANSMISSION = 8;
+  SENSOR_NIGHT_MODE = 9;
+  SENSOR_CABIN = 10;
+  SENSOR_CLIMATE = 11;
+  SENSOR_DRIVE_RESTRICTION = 12;
+  SENSOR_WHEEL_TICKS = 13;
+  SENSOR_OCCUPANCY = 14;
+  SENSOR_APERTURE = 15;
+  SENSOR_LAMPS = 16;
+  SENSOR_TYRE_PRESSURE = 17;
+  SENSOR_ACCELEROMETER = 18;
+  SENSOR_GYROSCOPE = 19;
+  SENSOR_SATELLITES = 20;
+}
+
+// Phone -> head unit, id 0x8001.
+message SensorFeedRequest {
+  optional SensorKind kind = 1;
+  // Minimum interval between readings. Zero means "whenever it changes".
+  optional int64 min_period_ns = 2;
+}
+
+// Head unit -> phone, id 0x8002.
+message SensorFeedReply {
+  optional int32 outcome = 1;
+}
+
+message RoadSpeedReading {
+  // Centimetres per second, so the field stays integral at useful precision.
+  optional int32 speed_cm_s = 1;
+  optional bool cruise_engaged = 2;
+}
+
+message NightModeReading {
+  optional bool night = 1;
+}
+
+message TransmissionReading {
+  // Negative for reverse, 0 for neutral/park, positive for a forward gear.
+  optional int32 gear = 1;
+}
+
+message DriveRestrictionReading {
+  // Bitmask of what the head unit forbids while moving.
+  optional int32 restriction_mask = 1;
+}
+
+message PositionReading {
+  optional uint64 stamp_ms = 1;
+  optional int32 latitude_e7 = 2;
+  optional int32 longitude_e7 = 3;
+  optional uint32 accuracy_mm = 4;
+  optional int32 altitude_mm = 5;
+  optional int32 bearing_e6 = 6;
+  optional int32 speed_mm_s = 7;
+}
+
+message ParkBrakeReading {
+  optional bool engaged = 1;
+}
+
+// Head unit -> phone, id 0x8003. Every field is repeated because one
+// indication may carry a burst of readings for the same sensor.
+message SensorReadingNotice {
+  repeated RoadSpeedReading road_speed = 1;
+  repeated NightModeReading night_mode = 2;
+  repeated TransmissionReading transmission = 3;
+  repeated DriveRestrictionReading drive_restriction = 4;
+  repeated PositionReading position = 5;
+  repeated ParkBrakeReading park_brake = 6;
+}

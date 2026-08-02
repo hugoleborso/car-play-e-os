@@ -1,0 +1,79 @@
+// Copyright 2026 The openaap authors.
+// Licensed under the Apache License, Version 2.0.
+//
+// Input channel messages. Names and field numbers are this implementation's
+// own; see the header of media.proto.
+
+syntax = "proto2";
+
+package openaap.hu.v1;
+
+// What a contact did between this report and the previous one.
+enum ContactAction {
+  CONTACT_DOWN = 0;
+  CONTACT_UP = 1;
+  CONTACT_MOVE = 2;
+}
+
+// What kind of pointing device the surface is. A resistive MIB2 panel reports
+// one contact at a time; a capacitive panel reports several.
+enum SurfaceKind {
+  SURFACE_UNSET = 0;
+  SURFACE_SINGLE_CONTACT = 1;
+  SURFACE_MULTI_CONTACT = 2;
+}
+
+message TouchSurfaceInfo {
+  optional uint32 width_px = 1;
+  optional uint32 height_px = 2;
+  optional SurfaceKind kind = 3;
+}
+
+message TouchContact {
+  optional uint32 x = 1;
+  optional uint32 y = 2;
+  optional uint32 contact_id = 3;
+}
+
+message TouchReport {
+  repeated TouchContact contact = 1;
+  optional ContactAction action = 2;
+  // Which entry of `contact` the action applies to.
+  optional uint32 action_index = 3;
+}
+
+message ButtonEvent {
+  optional uint32 code = 1;
+  optional bool pressed = 2;
+  optional bool repeated_press = 3;
+}
+
+// A rotary controller reports a signed detent count rather than press/release.
+message DialEvent {
+  optional uint32 code = 1;
+  optional int32 detents = 2;
+}
+
+message ButtonReport {
+  repeated ButtonEvent button = 1;
+  repeated DialEvent dial = 2;
+}
+
+// Head unit -> phone, id 0x8001. Exactly one of touch/buttons is populated.
+message InputReportNotice {
+  optional uint64 stamp_ns = 1;
+  optional int32 display_index = 2;
+  optional TouchReport touch = 3;
+  optional ButtonReport buttons = 4;
+}
+
+// Phone -> head unit, id 0x8002. The phone declares which button codes it is
+// willing to handle; anything else stays with the head unit's own UI.
+message BindingRequest {
+  repeated uint32 code = 1;
+}
+
+// Head unit -> phone, id 0x8003.
+message BindingReply {
+  optional int32 outcome = 1;
+}

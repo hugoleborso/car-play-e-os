@@ -2,8 +2,7 @@ pluginManagement {
     repositories {
         gradlePluginPortal()
         mavenCentral()
-        // google() is intentionally NOT listed here for the JVM modules: the
-        // pure-JVM part of this project must build without any Android SDK.
+        google()
     }
 }
 
@@ -11,6 +10,7 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         mavenCentral()
+        google()
     }
 }
 
