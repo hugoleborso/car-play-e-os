@@ -49,6 +49,18 @@ public object TestPki {
     public class Authority internal constructor(
         public val certificate: X509Certificate,
         internal val keyPair: KeyPair,
+        /**
+         * The name string this authority was built from, kept verbatim.
+         *
+         * Re-deriving it from the certificate is not equivalent: the platform
+         * renders a name in RFC 2253 form, which reverses component order
+         * relative to the sequence actually encoded. Feeding that back in as an
+         * issuer name produces a DN that no longer matches the authority's
+         * subject byte-for-byte, and chain validation then rejects a chain that
+         * is in fact correct -- a failure that surfaces as an opaque keystore
+         * error far from its cause.
+         */
+        internal val subjectName: String,
     ) {
         /** Issues a leaf certificate signed by this authority. */
         public fun issue(
@@ -62,9 +74,9 @@ public object TestPki {
         ): Leaf {
             val leafKeys = generateKeyPair(keyType)
             val certificate = buildCertificate(
-                subject = commonName,
+                subjectName = "CN=$commonName",
                 subjectKeys = leafKeys,
-                issuerName = this.certificate.subjectX500Principal.name,
+                issuerName = subjectName,
                 issuerKey = keyPair.private,
                 isCa = false,
                 validityDays = validityDays,
@@ -85,20 +97,32 @@ public object TestPki {
 
     public enum class KeyType { RSA_2048, RSA_4096, EC_P256 }
 
-    /** Creates a self-signed CA. */
-    public fun authority(commonName: String = "openaap test CA", keyType: KeyType = KeyType.RSA_2048): Authority {
+    /**
+     * Creates a self-signed CA.
+     *
+     * [distinguishedName] overrides the default `CN=<commonName>` with a
+     * complete name. The probe matrix needs it: reproducing a multi-component
+     * authority name exactly is the only way to ask a head unit whether it pins
+     * its trust anchor by name or by key.
+     */
+    public fun authority(
+        commonName: String = "openaap test CA",
+        keyType: KeyType = KeyType.RSA_2048,
+        distinguishedName: String? = null,
+    ): Authority {
+        val name = distinguishedName ?: "CN=$commonName"
         val keys = generateKeyPair(keyType)
         val certificate = buildCertificate(
-            subject = commonName,
+            subjectName = name,
             subjectKeys = keys,
-            issuerName = "CN=$commonName",
+            issuerName = name,
             issuerKey = keys.private,
             isCa = true,
             validityDays = 365,
             serverAuth = false,
             clientAuth = false,
         )
-        return Authority(certificate, keys)
+        return Authority(certificate, keys, name)
     }
 
     /** Creates a standalone self-signed certificate with no CA above it. */
@@ -111,7 +135,7 @@ public object TestPki {
     ): Leaf {
         val keys = generateKeyPair(keyType)
         val certificate = buildCertificate(
-            subject = commonName,
+            subjectName = "CN=$commonName",
             subjectKeys = keys,
             issuerName = "CN=$commonName",
             issuerKey = keys.private,
@@ -148,7 +172,7 @@ public object TestPki {
     }
 
     private fun buildCertificate(
-        subject: String,
+        subjectName: String,
         subjectKeys: KeyPair,
         issuerName: String,
         issuerKey: PrivateKey,
@@ -176,7 +200,7 @@ public object TestPki {
                 serial,
                 notBefore,
                 notAfter,
-                X500Name("CN=$subject"),
+                X500Name(subjectName),
                 subjectKeys.public,
             )
             return toPlatformCertificate(
@@ -189,7 +213,7 @@ public object TestPki {
             serial,
             notBefore,
             notAfter,
-            X500Name("CN=$subject"),
+            X500Name(subjectName),
             subjectKeys.public,
         )
 
