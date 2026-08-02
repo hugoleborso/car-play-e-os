@@ -5,6 +5,7 @@ plugins {
 dependencies {
     api(libs.protobuf.java)
     implementation(libs.kotlin.stdlib)
+    testImplementation(libs.gson)
 }
 
 protobuf {
