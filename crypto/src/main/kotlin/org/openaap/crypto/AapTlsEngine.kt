@@ -57,6 +57,16 @@ public class AapTlsEngine(
 
     private val context: SSLContext = SSLContext.getInstance("TLS").apply {
         init(credentials.keyManagers(), credentials.trustManagers(), SecureRandom())
+        // Session resumption off. Head units run OpenSSL 1.0.x-era stacks and
+        // have been observed presenting session tickets from an earlier session
+        // that the peer cannot honour, which then fails when application data
+        // starts flowing rather than during the handshake -- a confusing place
+        // for the failure to appear. There is nothing to gain from resumption on
+        // a link that carries one session per drive.
+        serverSessionContext.sessionCacheSize = 0
+        serverSessionContext.sessionTimeout = 1
+        clientSessionContext.sessionCacheSize = 0
+        clientSessionContext.sessionTimeout = 1
     }
 
     private val engine: SSLEngine = context.createSSLEngine().apply {
@@ -297,14 +307,21 @@ public class AapTlsEngine(
 
     public companion object {
         /**
-         * TLS 1.2 first.
+         * TLS 1.2, and only TLS 1.2.
          *
-         * Head units in the field are old: the target of this project is a 2017
-         * MIB2 unit whose stack predates TLS 1.3 by years. TLS 1.3 is offered
-         * because there is no reason to refuse a modern peer, but the ordering
-         * and the fallback matter more here than on the open internet.
+         * This is not conservatism, it is a protocol requirement. Every known
+         * AAP implementation pins TLS 1.2 explicitly, and offering 1.3 to a head
+         * unit breaks it: the 2017 MIB2 this project targets runs a TLS stack
+         * that predates 1.3 by years, and 1.3's post-handshake message flow does
+         * not survive being tunneled through AAP control messages by peers that
+         * were never written to expect it.
+         *
+         * Head units also negotiate DHE suites, which the platform provides
+         * with generated parameters; a server that cannot do DHE-RSA will fail
+         * the handshake in a way that looks like a certificate problem and is
+         * not one.
          */
-        public val DEFAULT_PROTOCOLS: List<String> = listOf("TLSv1.2", "TLSv1.3")
+        public val DEFAULT_PROTOCOLS: List<String> = listOf("TLSv1.2")
 
         private val EMPTY: ByteBuffer = ByteBuffer.allocate(0)
     }

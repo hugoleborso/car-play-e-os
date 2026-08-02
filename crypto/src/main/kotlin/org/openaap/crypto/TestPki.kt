@@ -22,6 +22,7 @@ import org.bouncycastle.asn1.x509.KeyPurposeId
 import org.bouncycastle.asn1.x509.KeyUsage
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils
+import org.bouncycastle.cert.jcajce.JcaX509v1CertificateBuilder
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
 
@@ -56,6 +57,8 @@ public object TestPki {
             validityDays: Long = 30,
             serverAuth: Boolean = true,
             clientAuth: Boolean = true,
+            version: CertificateVersion = CertificateVersion.V3,
+            validFromDaysAgo: Long = 1,
         ): Leaf {
             val leafKeys = generateKeyPair(keyType)
             val certificate = buildCertificate(
@@ -67,6 +70,8 @@ public object TestPki {
                 validityDays = validityDays,
                 serverAuth = serverAuth,
                 clientAuth = clientAuth,
+                version = version,
+                validFromDaysAgo = validFromDaysAgo,
             )
             return Leaf(listOf(certificate, this.certificate), leafKeys.private)
         }
@@ -101,6 +106,8 @@ public object TestPki {
         commonName: String,
         keyType: KeyType = KeyType.RSA_2048,
         validityDays: Long = 30,
+        version: CertificateVersion = CertificateVersion.V3,
+        validFromDaysAgo: Long = 1,
     ): Leaf {
         val keys = generateKeyPair(keyType)
         val certificate = buildCertificate(
@@ -112,9 +119,26 @@ public object TestPki {
             validityDays = validityDays,
             serverAuth = true,
             clientAuth = true,
+            version = version,
+            validFromDaysAgo = validFromDaysAgo,
         )
         return Leaf(listOf(certificate), keys.private)
     }
+
+    /**
+     * X.509 structure version.
+     *
+     * Version 1 exists here for one reason: the certificates real Android Auto
+     * endpoints present are `Version: 1` -- no extensions, no SAN, no key usage,
+     * no extended key usage. That is unusual enough in 2026 that several modern
+     * TLS stacks reject them outright, and it cuts both ways for us. A head unit
+     * whose parser was written in 2014 against v1 certificates may equally
+     * choke on the v3 certificate a modern library produces by default. Being
+     * able to present either is the difference between "the head unit rejected
+     * our identity" and "the head unit could not parse our certificate", which
+     * are very different findings.
+     */
+    public enum class CertificateVersion { V1, V3 }
 
     private fun generateKeyPair(keyType: KeyType): KeyPair = when (keyType) {
         KeyType.RSA_2048 -> KeyPairGenerator.getInstance("RSA").apply { initialize(2048, random) }.generateKeyPair()
@@ -132,14 +156,33 @@ public object TestPki {
         validityDays: Long,
         serverAuth: Boolean,
         clientAuth: Boolean,
+        version: CertificateVersion = CertificateVersion.V3,
+        validFromDaysAgo: Long = 1,
     ): X509Certificate {
         val now = System.currentTimeMillis()
-        // Backdate slightly: head units frequently boot with a wrong clock, and a
+        // Backdate: head units frequently boot with a wrong clock, and a
         // notBefore in the future is a classic cause of an unexplained handshake
-        // failure in a car.
-        val notBefore = Date(now - 24 * 3600 * 1000L)
+        // failure in a car. validFromDaysAgo is a knob rather than a constant so
+        // the probe matrix can deliberately produce not-yet-valid and expired
+        // certificates and see whether a head unit notices.
+        val notBefore = Date(now - validFromDaysAgo * 24 * 3600 * 1000L)
         val notAfter = Date(now + validityDays * 24 * 3600 * 1000L)
         val serial = BigInteger(64, random)
+        val signatureAlgorithm = if (issuerKey.algorithm == "EC") "SHA256withECDSA" else "SHA256withRSA"
+
+        if (version == CertificateVersion.V1) {
+            val v1 = JcaX509v1CertificateBuilder(
+                X500Name(issuerName),
+                serial,
+                notBefore,
+                notAfter,
+                X500Name("CN=$subject"),
+                subjectKeys.public,
+            )
+            return toPlatformCertificate(
+                v1.build(JcaContentSignerBuilder(signatureAlgorithm).build(issuerKey)).encoded
+            )
+        }
 
         val builder = JcaX509v3CertificateBuilder(
             X500Name(issuerName),
@@ -182,16 +225,18 @@ public object TestPki {
             }
         }
 
-        val signatureAlgorithm = if (issuerKey.algorithm == "EC") "SHA256withECDSA" else "SHA256withRSA"
         val signer = JcaContentSignerBuilder(signatureAlgorithm).build(issuerKey)
-        val holder = builder.build(signer)
-
-        // Round-trip through the JCA CertificateFactory so the returned object is
-        // a plain platform certificate and callers never need BouncyCastle on
-        // their classpath -- Android in particular ships its own provider.
-        return CertificateFactory.getInstance("X.509")
-            .generateCertificate(holder.encoded.inputStream()) as X509Certificate
+        return toPlatformCertificate(builder.build(signer).encoded)
     }
+
+    /**
+     * Round-trips DER through the JCA factory so the returned object is a plain
+     * platform certificate and callers never need BouncyCastle on their
+     * classpath -- Android in particular ships its own provider.
+     */
+    private fun toPlatformCertificate(der: ByteArray): X509Certificate =
+        CertificateFactory.getInstance("X.509")
+            .generateCertificate(der.inputStream()) as X509Certificate
 }
 
 /** A [CredentialProvider] backed by generated test material. */

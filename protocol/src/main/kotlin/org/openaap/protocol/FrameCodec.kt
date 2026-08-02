@@ -101,18 +101,35 @@ public object FrameEncoder {
      *
      * [flags] should carry only the semantic bits ([FrameFlags.CONTROL],
      * [FrameFlags.ENCRYPTED]); the fragmentation bits are computed here.
+     *
+     * [encrypt] is applied to each fragment *after* splitting. This ordering is
+     * mandated by the protocol rather than chosen: the announced total length
+     * describes the plaintext message, while each frame's length field
+     * describes that frame's ciphertext. Encrypting first and splitting the
+     * result would put whole TLS records across frame boundaries and make the
+     * two length fields inconsistent. Splitting first also means every frame
+     * carries complete records, so a receiver can decrypt frame by frame
+     * without buffering a whole message.
+     *
+     * Passing no [encrypt] while setting [FrameFlags.ENCRYPTED] is allowed and
+     * means the caller has already encrypted a single frame's worth of bytes.
+     * It is not valid for a payload large enough to fragment, because the
+     * announced total would then describe ciphertext. Keeping the flag and the
+     * encryptor consistent is the session layer's job; this is a codec.
      */
     public fun encode(
         channel: Int,
         flags: Int,
         payload: ByteArray,
         fragmentSize: Int = FrameHeader.SEND_FRAGMENT_SIZE,
+        encrypt: ((ByteArray) -> ByteArray)? = null,
     ): List<ByteArray> {
         require(fragmentSize in 1..FrameHeader.MAX_PAYLOAD) { "bad fragment size: $fragmentSize" }
         val semanticFlags = flags and (FrameFlags.CONTROL or FrameFlags.ENCRYPTED)
 
         if (payload.size <= fragmentSize) {
-            return listOf(serialise(channel, semanticFlags or FrameFlags.BULK, payload, 0, payload.size, null))
+            val body = encrypt?.invoke(payload) ?: payload
+            return listOf(serialise(channel, semanticFlags or FrameFlags.BULK, body, null))
         }
 
         val out = ArrayList<ByteArray>((payload.size + fragmentSize - 1) / fragmentSize)
@@ -124,9 +141,13 @@ public object FrameEncoder {
             var frameFlags = semanticFlags
             if (first) frameFlags = frameFlags or FrameFlags.FIRST
             if (last) frameFlags = frameFlags or FrameFlags.LAST
-            // Only the opening fragment announces the reassembled size.
+
+            val plaintext = payload.copyOfRange(offset, offset + chunk)
+            val body = encrypt?.invoke(plaintext) ?: plaintext
+            // Only the opening fragment announces the size, and it announces the
+            // size of the plaintext message, not of the bytes on the wire.
             val total = if (first) payload.size.toLong() else null
-            out += serialise(channel, frameFlags, payload, offset, chunk, total)
+            out += serialise(channel, frameFlags, body, total)
             offset += chunk
         }
         return out
@@ -135,19 +156,20 @@ public object FrameEncoder {
     private fun serialise(
         channel: Int,
         flags: Int,
-        payload: ByteArray,
-        offset: Int,
-        length: Int,
+        body: ByteArray,
         totalLength: Long?,
     ): ByteArray {
+        require(body.size <= FrameHeader.MAX_PAYLOAD) {
+            "frame body of ${body.size} bytes exceeds the 16-bit length field"
+        }
         val headerSize =
             if (totalLength != null) FrameHeader.EXTENDED_HEADER_SIZE else FrameHeader.BASE_HEADER_SIZE
-        val out = ByteArray(headerSize + length)
+        val out = ByteArray(headerSize + body.size)
         out[0] = channel.toByte()
         out[1] = flags.toByte()
-        writeUInt16(out, 2, length)
+        writeUInt16(out, 2, body.size)
         if (totalLength != null) writeUInt32(out, 4, totalLength)
-        payload.copyInto(out, headerSize, offset, offset + length)
+        body.copyInto(out, headerSize)
         return out
     }
 }
@@ -155,9 +177,22 @@ public object FrameEncoder {
 /**
  * Reassembles fragmented messages, one independent stream per channel.
  *
- * Channels interleave freely on the wire: a 400 KiB video frame is fragmented
- * across dozens of frames while ping and sensor traffic slips between them, so
+ * Channels interleave freely on the wire: a large video frame is fragmented
+ * across many frames while ping and sensor traffic slips between them, so
  * reassembly state must be per-channel rather than global.
+ *
+ * **Feed this decrypted payloads.** The two length fields in an AAP frame are
+ * not measured in the same units: `payloadLength` counts the bytes in *this*
+ * frame after encryption, while `totalLength` counts the bytes of the whole
+ * message *before* encryption. A sender fragments the plaintext first and
+ * encrypts each fragment independently, so every frame holds whole TLS records
+ * and can be decrypted on its own.
+ *
+ * Concretely, that means decryption happens per frame and reassembly happens
+ * after it. Feeding ciphertext here would compare encrypted byte counts against
+ * a plaintext total and reject every fragmented encrypted message — with a
+ * length mismatch that looks like a framing bug and is not one. Hence the
+ * [accept] overload that takes the payload separately from the header.
  */
 public class MessageAssembler(private val maxMessageBytes: Int = 8 * 1024 * 1024) {
 
@@ -168,31 +203,37 @@ public class MessageAssembler(private val maxMessageBytes: Int = 8 * 1024 * 1024
 
     private val partials = HashMap<Int, Partial>()
 
-    /**
-     * Feeds a frame in and returns the completed message, or `null` when the
-     * message is still being assembled.
-     */
-    public fun accept(frame: Frame): AssembledMessage? {
-        val channel = frame.header.channel
+    /** Convenience for plaintext frames, where the payload needs no decryption. */
+    public fun accept(frame: Frame): AssembledMessage? = accept(frame.header, frame.payload)
 
-        if (frame.header.isFirst && frame.header.isLast) {
+    /**
+     * Feeds one frame's decrypted payload and returns the completed message, or
+     * `null` while the message is still being assembled.
+     *
+     * [payload] is the plaintext for this frame, which for an encrypted frame is
+     * a different length from [FrameHeader.payloadLength].
+     */
+    public fun accept(header: FrameHeader, payload: ByteArray): AssembledMessage? {
+        val channel = header.channel
+
+        if (header.isFirst && header.isLast) {
             if (partials.remove(channel) != null) {
                 throw FrameFormatException(
                     "channel $channel sent an unfragmented message while a fragmented one was open"
                 )
             }
-            return AssembledMessage(channel, frame.header.flags, frame.payload)
+            return AssembledMessage(channel, header.flags, payload)
         }
 
-        if (frame.header.isFirst) {
-            val total = frame.header.totalLength
+        if (header.isFirst) {
+            val total = header.totalLength
                 ?: throw FrameFormatException("first fragment on channel $channel has no total length")
             if (total > maxMessageBytes) {
                 throw FrameFormatException("message of $total bytes on channel $channel exceeds cap")
             }
-            val partial = Partial(total, frame.header.flags)
-            partial.chunks += frame.payload
-            partial.received = frame.payload.size.toLong()
+            val partial = Partial(total, header.flags)
+            partial.chunks += payload
+            partial.received = payload.size.toLong()
             partials[channel] = partial
             return null
         }
@@ -203,15 +244,15 @@ public class MessageAssembler(private val maxMessageBytes: Int = 8 * 1024 * 1024
         // The ENCRYPTED/CONTROL bits must not flip mid-message; if they do we are
         // desynchronised and any reassembled payload would be garbage.
         val semantic = FrameFlags.CONTROL or FrameFlags.ENCRYPTED
-        if (frame.header.flags and semantic != partial.flags and semantic) {
+        if (header.flags and semantic != partial.flags and semantic) {
             throw FrameFormatException(
                 "fragment flags changed mid-message on channel $channel: " +
-                    "${FrameFlags.describe(partial.flags)} -> ${FrameFlags.describe(frame.header.flags)}"
+                    "${FrameFlags.describe(partial.flags)} -> ${FrameFlags.describe(header.flags)}"
             )
         }
 
-        partial.chunks += frame.payload
-        partial.received += frame.payload.size
+        partial.chunks += payload
+        partial.received += payload.size
         if (partial.received > partial.totalLength) {
             partials.remove(channel)
             throw FrameFormatException(
@@ -219,7 +260,10 @@ public class MessageAssembler(private val maxMessageBytes: Int = 8 * 1024 * 1024
             )
         }
 
-        if (!frame.header.isLast) return null
+        // A zero-length final fragment is legal and does occur: some senders
+        // split at ">= fragment size", so a message that is an exact multiple
+        // ends with an empty LAST frame.
+        if (!header.isLast) return null
 
         partials.remove(channel)
         if (partial.received != partial.totalLength) {

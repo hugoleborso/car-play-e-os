@@ -118,6 +118,58 @@ class FrameCodecTest {
     }
 
     @Test
+    fun `encrypted fragments announce the plaintext length and carry ciphertext lengths`() {
+        // The two length fields in a frame are measured in different units:
+        // payloadLength counts this frame's ciphertext, totalLength counts the
+        // whole message's plaintext. Encryption expands each fragment, so the
+        // sum of the frame lengths deliberately exceeds the announced total.
+        // Getting this backwards makes every fragmented encrypted message fail
+        // reassembly with a length mismatch that looks like a framing bug.
+        val overhead = 29
+        val encrypt: (ByteArray) -> ByteArray = { plain -> ByteArray(overhead) + plain }
+        val decrypt: (ByteArray) -> ByteArray = { cipher -> cipher.copyOfRange(overhead, cipher.size) }
+
+        val payload = Random(9).nextBytes(2500)
+        val frames = FrameEncoder.encode(
+            channel = 5,
+            flags = FrameFlags.ENCRYPTED,
+            payload = payload,
+            fragmentSize = 1000,
+            encrypt = encrypt,
+        )
+
+        assertEquals(3, frames.size)
+        // Opening frame: 8-byte header, 1000 bytes of plaintext plus overhead.
+        assertEquals(FrameHeader.EXTENDED_HEADER_SIZE + 1000 + overhead, frames[0].size)
+
+        val decoder = FrameDecoder()
+        val assembler = MessageAssembler()
+        var assembled: AssembledMessage? = null
+        for (bytes in frames) {
+            decoder.feed(bytes)
+            while (true) {
+                val frame = decoder.poll() ?: break
+                assertEquals(payload.size.toLong(), frame.header.totalLength ?: payload.size.toLong())
+                // Decrypt per frame, then reassemble. Reassembling first would
+                // compare ciphertext byte counts against a plaintext total.
+                assembler.accept(frame.header, decrypt(frame.payload))?.let { assembled = it }
+            }
+        }
+
+        assertArrayEquals(payload, assembled!!.payload)
+    }
+
+    @Test
+    fun `zero length final fragment is accepted`() {
+        // Senders that split at ">= fragment size" emit an empty LAST frame when
+        // the payload is an exact multiple. Rejecting it would drop real traffic.
+        val assembler = MessageAssembler()
+        assembler.accept(Frame(FrameHeader(6, FrameFlags.FIRST, 8, totalLength = 8), ByteArray(8) { 1 }))
+        val completed = assembler.accept(Frame(FrameHeader(6, FrameFlags.LAST, 0), ByteArray(0)))
+        assertEquals(8, completed!!.payload.size)
+    }
+
+    @Test
     fun `continuation frame without an open message is rejected`() {
         val assembler = MessageAssembler()
         val orphan = Frame(FrameHeader(2, FrameFlags.LAST, 4), ByteArray(4))

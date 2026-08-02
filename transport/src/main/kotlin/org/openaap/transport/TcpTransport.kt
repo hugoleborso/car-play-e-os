@@ -16,11 +16,24 @@ import java.net.Socket
 /**
  * AAP over TCP.
  *
- * This is the transport wireless Android Auto uses once the Bluetooth bootstrap
- * has handed the head unit the phone's Wi-Fi credentials: the phone listens and
- * the head unit dials in. It is also what the head-unit emulator under
- * `emulator/` speaks, which is what makes the whole stack testable without a
- * car or a USB cable.
+ * Three separate uses, with different role assignments, which is why this class
+ * both dials and listens:
+ *
+ * - **Wireless Android Auto.** After the Bluetooth bootstrap the head unit (or
+ *   a wireless dongle) runs a SoftAP and a TCP server on port 5288, and the
+ *   *phone* connects out to it. Note this is the opposite of the intuitive
+ *   arrangement, and the opposite of the TLS roles: the phone is the TCP client
+ *   but the TLS server. Not relevant to the MIB2 target -- see below -- but it
+ *   is the natural second transport.
+ * - **The head-unit emulator** under `emulator/`, which listens and lets the
+ *   whole stack be exercised with no car and no cable.
+ * - **Google's Desktop Head Unit** in ADB mode, where the *phone* listens on
+ *   5277 and DHU connects through an `adb forward`. This is the cheapest bench
+ *   target that is not our own code.
+ *
+ * The 2017 MIB2 this project targets has no wireless projection at all -- that
+ * arrived with MIB3 around MY2021 -- so on the real car the transport is always
+ * USB accessory mode and this class is a development and testing vehicle.
  */
 public class TcpTransport private constructor(
     private val socket: Socket,
