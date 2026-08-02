@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">openaap</string>
+    <string name="notification_channel_name">Car projection</string>
+    <string name="notification_channel_description">Shown while the phone is projecting to a car display.</string>
+    <string name="projection_active">Connected to car</string>
+    <string name="projection_connecting">Connecting to car…</string>
+</resources>

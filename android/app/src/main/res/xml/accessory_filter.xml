@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Which USB accessories this app claims.
+
+  Match on manufacturer and model only. AccessoryFilter compares every declared
+  field by exact string equality, and the version string differs between head
+  units: implementations in the wild send "1.0" and "2.0.1", and a given car
+  may send something else entirely. Declaring a version would silently stop us
+  matching on hardware nobody has tested against.
+
+  Both model strings are claimed because head units use both.
+-->
+<resources>
+    <usb-accessory manufacturer="Android" model="Android Auto" />
+    <usb-accessory manufacturer="Android" model="Android Open Automotive Protocol" />
+</resources>
