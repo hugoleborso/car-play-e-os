@@ -1,0 +1,305 @@
+// Copyright 2026 The openaap authors.
+// Licensed under the Apache License, Version 2.0.
+//
+// Control-channel messages.
+//
+// Field numbers and enum values are wire facts, taken from the specification in
+// docs/01-aap-wire-format.md. Every identifier is ours: names are creative
+// choices rather than protocol requirements -- the same fields carry three
+// different sets of names across the existing GPL implementations, which is
+// itself the proof -- so reusing theirs would import their licence for nothing.
+
+syntax = "proto2";
+
+package openaap;
+
+option java_package = "org.openaap.protocol.proto";
+option java_outer_classname = "ControlProto";
+option java_multiple_files = true;
+
+// ---------------------------------------------------------------------------
+// Discovery
+// ---------------------------------------------------------------------------
+
+// Sent by the phone once the head unit has declared the session authenticated.
+message DiscoveryRequest {
+  optional string phone_model = 4;
+  optional string phone_maker = 5;
+}
+
+// The head unit's answer: who it is, and every channel it is willing to run.
+message DiscoveryResponse {
+  repeated ChannelAdvert channels = 1;
+  optional string unit_label = 2;
+  optional string vehicle_model = 3;
+  optional string vehicle_year = 4;
+  optional string vehicle_serial = 5;
+  optional bool steering_on_left = 6;
+  optional string unit_maker = 7;
+  optional string unit_model = 8;
+  optional string firmware_build = 9;
+  optional string firmware_version = 10;
+  optional bool native_media_during_voice = 11;
+  optional bool suppress_clock = 12;
+}
+
+// One channel the head unit offers.
+//
+// The channel id is assigned by the head unit, not fixed by the protocol, and
+// exactly one of the service fields below is populated to say what the channel
+// carries. A phone must build its routing table from these adverts; hardcoding
+// the conventional ids works against hobbyist head units and then fails in a
+// real car.
+message ChannelAdvert {
+  optional uint32 channel_id = 1;
+  optional SensorService sensors = 2;
+  optional MediaSinkService media_sink = 3;
+  optional InputService input = 4;
+  optional MediaSourceService media_source = 5;
+  optional BluetoothService bluetooth = 6;
+  optional NavigationService navigation = 8;
+  optional PhoneStatusService phone_status = 10;
+  optional VendorService vendor = 12;
+  optional NotificationService notifications = 13;
+}
+
+// ---------------------------------------------------------------------------
+// Session lifecycle
+// ---------------------------------------------------------------------------
+
+enum ResultCode {
+  RESULT_OK = 0;
+  RESULT_FAILED = 1;
+}
+
+// The head unit's verdict on the TLS session. Receiving this with RESULT_OK is
+// what permits the phone to move from plaintext to encrypted framing.
+message AuthSucceeded {
+  optional ResultCode result = 1;
+}
+
+message ChannelOpenRequest {
+  optional int32 priority = 1;
+  optional int32 channel_id = 2;
+}
+
+message ChannelOpenResponse {
+  optional ResultCode result = 1;
+}
+
+message PingRequest {
+  optional int64 stamp = 1;
+}
+
+// Echo the request's stamp verbatim; the head unit uses it to measure latency.
+message PingResponse {
+  optional int64 stamp = 1;
+}
+
+enum TeardownReason {
+  TEARDOWN_UNSPECIFIED = 0;
+  TEARDOWN_USER_QUIT = 1;
+}
+
+message TeardownRequest {
+  optional TeardownReason reason = 1;
+}
+
+message TeardownResponse {}
+
+// ---------------------------------------------------------------------------
+// Focus
+// ---------------------------------------------------------------------------
+
+enum AudioClaim {
+  AUDIO_CLAIM_NONE = 0;
+  AUDIO_CLAIM_PERMANENT = 1;
+  AUDIO_CLAIM_TRANSIENT = 2;
+  AUDIO_CLAIM_TRANSIENT_GUIDANCE = 3;
+  AUDIO_CLAIM_RELEASE = 4;
+}
+
+enum AudioGrant {
+  AUDIO_GRANT_NONE = 0;
+  AUDIO_GRANT_FULL = 1;
+  AUDIO_GRANT_TRANSIENT = 2;
+  AUDIO_GRANT_REVOKED = 3;
+  AUDIO_GRANT_REVOKED_MAY_DUCK = 4;
+  AUDIO_GRANT_REVOKED_TRANSIENT = 5;
+  AUDIO_GRANT_MEDIA_ONLY = 6;
+  AUDIO_GRANT_GUIDANCE_ONLY = 7;
+}
+
+message AudioFocusRequest {
+  optional AudioClaim claim = 1;
+}
+
+message AudioFocusResponse {
+  optional AudioGrant grant = 1;
+}
+
+message NavigationFocusRequest {
+  optional uint32 kind = 1;
+}
+
+message NavigationFocusResponse {
+  optional uint32 kind = 1;
+}
+
+enum VoiceState {
+  VOICE_STATE_UNSPECIFIED = 0;
+  VOICE_STATE_STARTED = 1;
+  VOICE_STATE_STOPPED = 2;
+}
+
+message VoiceSessionRequest {
+  optional VoiceState state = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Service descriptors, carried inside ChannelAdvert
+// ---------------------------------------------------------------------------
+
+enum StreamKind {
+  STREAM_KIND_NONE = 0;
+  STREAM_KIND_AUDIO = 1;
+  STREAM_KIND_VIDEO = 3;
+}
+
+enum AudioPurpose {
+  AUDIO_PURPOSE_NONE = 0;
+  AUDIO_PURPOSE_SPEECH = 1;
+  AUDIO_PURPOSE_SYSTEM = 2;
+  AUDIO_PURPOSE_MEDIA = 3;
+  AUDIO_PURPOSE_ALARM = 4;
+}
+
+// Enum indices, not pixel counts. Values of 4 and above exist on modern head
+// units and are not publicly documented; treat them as unknown rather than
+// guessing.
+enum FrameGeometry {
+  GEOMETRY_NONE = 0;
+  GEOMETRY_800_480 = 1;
+  GEOMETRY_1280_720 = 2;
+  GEOMETRY_1920_1080 = 3;
+}
+
+enum FrameRate {
+  FRAME_RATE_NONE = 0;
+  FRAME_RATE_30 = 1;
+  FRAME_RATE_60 = 2;
+}
+
+message VideoFormat {
+  optional FrameGeometry geometry = 1;
+  optional FrameRate rate = 2;
+  optional uint32 inset_width = 3;
+  optional uint32 inset_height = 4;
+  optional uint32 density = 5;
+  optional uint32 extra_depth = 6;
+}
+
+message AudioFormat {
+  optional uint32 sample_rate = 1;
+  optional uint32 sample_bits = 2;
+  optional uint32 channels = 3;
+}
+
+// A channel the phone streams *into* the head unit: video, or one of the audio
+// outputs.
+message MediaSinkService {
+  optional StreamKind stream = 1;
+  optional AudioPurpose purpose = 2;
+  repeated AudioFormat audio_formats = 3;
+  repeated VideoFormat video_formats = 4;
+  optional bool usable_during_call = 5;
+}
+
+// A channel the head unit streams into the phone: the microphone.
+message MediaSourceService {
+  optional StreamKind stream = 1;
+  optional AudioFormat audio_format = 2;
+  optional bool usable_during_call = 3;
+}
+
+message TouchSurface {
+  optional uint32 width = 1;
+  optional uint32 height = 2;
+}
+
+message InputService {
+  repeated uint32 known_scan_codes = 1;
+  optional TouchSurface touchscreen = 2;
+  optional TouchSurface touchpad = 3;
+}
+
+message SensorService {
+  repeated SensorAdvert sensors = 1;
+}
+
+message SensorAdvert {
+  optional SensorKind kind = 1;
+}
+
+enum BluetoothPairingKind {
+  BT_PAIRING_NONE = 0;
+  BT_PAIRING_UNKNOWN_1 = 1;
+  BT_PAIRING_A2DP = 2;
+  BT_PAIRING_UNKNOWN_3 = 3;
+  BT_PAIRING_HFP = 4;
+}
+
+message BluetoothService {
+  optional string unit_address = 1;
+  repeated BluetoothPairingKind pairing_kinds = 2;
+}
+
+message NavigationService {
+  optional uint32 min_interval_ms = 1;
+  optional uint32 capability = 2;
+  optional NavigationImageFormat image_format = 3;
+}
+
+message NavigationImageFormat {
+  optional int32 width = 1;
+  optional int32 height = 2;
+  optional int32 depth_bits = 3;
+}
+
+message PhoneStatusService {}
+
+message NotificationService {}
+
+message VendorService {
+  optional string name = 1;
+  repeated string allowed_packages = 2;
+  optional bytes payload = 3;
+}
+
+// Sensor kinds. The numbering is load-bearing beyond this enum: each value is
+// also the field number carrying that sensor's readings in SensorReadings, so
+// the two must stay aligned.
+enum SensorKind {
+  SENSOR_NONE = 0;
+  SENSOR_LOCATION = 1;
+  SENSOR_COMPASS = 2;
+  SENSOR_ROAD_SPEED = 3;
+  SENSOR_ENGINE_RPM = 4;
+  SENSOR_ODOMETER = 5;
+  SENSOR_FUEL = 6;
+  SENSOR_PARKING_BRAKE = 7;
+  SENSOR_GEAR = 8;
+  SENSOR_DIAGNOSTICS = 9;
+  SENSOR_NIGHT_MODE = 10;
+  SENSOR_CABIN = 11;
+  SENSOR_CLIMATE = 12;
+  SENSOR_DRIVING_RESTRICTIONS = 13;
+  SENSOR_DEAD_RECKONING = 14;
+  SENSOR_PASSENGER = 15;
+  SENSOR_DOOR = 16;
+  SENSOR_LIGHT = 17;
+  SENSOR_TIRE = 18;
+  SENSOR_ACCELEROMETER = 19;
+  SENSOR_GYROSCOPE = 20;
+  SENSOR_GNSS = 21;
+}
