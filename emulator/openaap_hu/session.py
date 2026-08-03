@@ -1397,35 +1397,37 @@ class HeadUnitSession:
     def _describe_service_protobuf(
         self, kind: ServiceKind, message_id: int, body: bytes
     ) -> str:
-        table: dict[tuple[bool, int], type] = {}
+        if message_id < wire.SERVICE_NAMESPACE_FLOOR:
+            return self._describe_control_protobuf(message_id, body)
+
+        # Service namespaces overlap -- 0x8001 is three different messages
+        # depending on the channel -- so the table is chosen by kind first.
+        table: dict[int, type] = {}
         if kind.is_media:
             table = {
-                (True, wire.STREAM_SETUP_REQUEST): media_pb2.StreamSetupRequest,
-                (True, wire.STREAM_SETUP_REPLY): media_pb2.StreamSetupReply,
-                (True, wire.STREAM_START_NOTICE): media_pb2.StreamStartNotice,
-                (True, wire.STREAM_STOP_NOTICE): media_pb2.StreamStopNotice,
-                (True, wire.MEDIA_CONSUMED_NOTICE): media_pb2.MediaConsumedNotice,
-                (True, wire.MICROPHONE_OPEN_REQUEST): media_pb2.MicrophoneOpenRequest,
-                (True, wire.MICROPHONE_OPEN_REPLY): media_pb2.MicrophoneOpenReply,
-                (True, wire.SCREEN_FOCUS_REQUEST): media_pb2.ScreenFocusRequest,
-                (True, wire.SCREEN_FOCUS_NOTICE): media_pb2.ScreenFocusNotice,
+                wire.STREAM_SETUP_REQUEST: media_pb2.StreamSetupRequest,
+                wire.STREAM_SETUP_REPLY: media_pb2.StreamSetupReply,
+                wire.STREAM_START_NOTICE: media_pb2.StreamStartNotice,
+                wire.STREAM_STOP_NOTICE: media_pb2.StreamStopNotice,
+                wire.MEDIA_CONSUMED_NOTICE: media_pb2.MediaConsumedNotice,
+                wire.MICROPHONE_OPEN_REQUEST: media_pb2.MicrophoneOpenRequest,
+                wire.MICROPHONE_OPEN_REPLY: media_pb2.MicrophoneOpenReply,
+                wire.SCREEN_FOCUS_REQUEST: media_pb2.ScreenFocusRequest,
+                wire.SCREEN_FOCUS_NOTICE: media_pb2.ScreenFocusNotice,
             }
         elif kind is ServiceKind.INPUT:
             table = {
-                (True, wire.INPUT_REPORT_NOTICE): input_pb2.InputReportNotice,
-                (True, wire.INPUT_BINDING_REQUEST): input_pb2.BindingRequest,
-                (True, wire.INPUT_BINDING_REPLY): input_pb2.BindingReply,
+                wire.INPUT_REPORT_NOTICE: input_pb2.InputReportNotice,
+                wire.INPUT_BINDING_REQUEST: input_pb2.BindingRequest,
+                wire.INPUT_BINDING_REPLY: input_pb2.BindingReply,
             }
         elif kind is ServiceKind.SENSORS:
             table = {
-                (True, wire.SENSOR_FEED_REQUEST): sensors_pb2.SensorFeedRequest,
-                (True, wire.SENSOR_FEED_REPLY): sensors_pb2.SensorFeedReply,
-                (True, wire.SENSOR_READING_NOTICE): sensors_pb2.SensorReadingNotice,
+                wire.SENSOR_FEED_REQUEST: sensors_pb2.SensorFeedRequest,
+                wire.SENSOR_FEED_REPLY: sensors_pb2.SensorFeedReply,
+                wire.SENSOR_READING_NOTICE: sensors_pb2.SensorReadingNotice,
             }
-
-        if message_id < wire.SERVICE_NAMESPACE_FLOOR:
-            return self._describe_control_protobuf(message_id, body)
-        message_type = table.get((True, message_id))
+        message_type = table.get(message_id)
         if message_type is None:
             return f"{len(body)}B, no schema for a {kind.value} channel"
         message = message_type()
