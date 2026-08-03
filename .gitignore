@@ -6,4 +6,3 @@ local.properties
 __pycache__/
 *.pyc
 .venv/
-emulator/generated/

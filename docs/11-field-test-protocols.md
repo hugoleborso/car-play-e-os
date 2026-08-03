@@ -89,7 +89,8 @@ This is the cheapest useful data point in the whole exercise.
 
 **Steps**
 
-1. Install the app: `adb install -r app-debug.apk`
+1. Get the APK from the [latest release](../../releases/latest) and install it,
+   either by opening it on the phone or with `adb install -r openaap-*.apk`.
 2. Clear the log: `adb logcat -c`
 3. Unplug from the computer, plug into the car, wait ten seconds, unplug.
 4. Back at the computer: `adb logcat -d -s openaap.attach openaap.service > attach.txt`
@@ -126,17 +127,23 @@ unit said when it stopped. Nine identities, each varying one thing.
 
 **Steps**
 
-1. `adb shell pm clear org.openaap.projection` to start from a clean slate.
+1. Open the app and press **Start again**, or `adb shell pm clear org.openaap.projection`.
 2. Plug into the car. Leave it plugged in for about a minute — a head unit that
    rejects a phone usually retries by itself, and each retry advances the matrix.
 3. Unplug and replug a few times. Each new connection advances by at least one.
-4. Repeat until you have plugged in roughly a dozen times, or until the phone's
-   notification says the probe is complete.
-5. Back at the computer:
+4. Repeat until you have plugged in roughly a dozen times, or until the app says
+   every identity has been tried.
+5. The app's screen shows each result as it arrives, so you can tell in the car
+   whether it is working rather than finding out at home. When it is done, press
+   **Share report** and send it to yourself by any means the phone has — the
+   cable is in the head unit, so this is easier than waiting until you can plug
+   into a computer.
+
+   If you would rather have the files, back at the computer:
 
    ```
    adb pull /sdcard/Android/data/org.openaap.projection/files/probe-report.txt
-   adb pull /sdcard/Android/data/org.openaap.projection/files/probe-results.log
+   adb pull /sdcard/Android/data/org.openaap.projection/files/probe-records.jsonl
    ```
 
 **Record.** Both files. The report is the summary; the log has a full transcript

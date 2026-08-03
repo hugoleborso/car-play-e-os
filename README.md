@@ -8,6 +8,25 @@ Every open-source implementation of this protocol implements the **head unit**
 side. This one implements the **phone** side, which is the half nobody has built
 without borrowing Google's key material.
 
+## Get the app
+
+**[Download the latest APK](../../releases/latest)** — then open it on the phone, or
+`adb install -r openaap-*.apk`.
+
+Android 10 or later. No Play Services, no Google account, no root, no custom ROM.
+It is signed with Android's standard debug key, which is deliberate for a
+sideloaded diagnostic tool: no secret lives in this repository and the build is
+reproducible from the tagged source.
+
+The app starts in **probe mode**. Plug the phone into a car's data USB port and it
+presents a series of generated identities to the head unit, one per connection,
+recording how far each got and what the head unit said when it stopped. The screen
+shows this live, which matters because the cable is in the car and `adb` cannot see
+the phone while it is happening. The full procedure is in
+[field test protocols](docs/11-field-test-protocols.md).
+
+It does **not** project video or audio yet. It measures.
+
 ## Status
 
 The protocol stack is implemented and tested. Whether it can connect to a real
