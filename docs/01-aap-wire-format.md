@@ -120,6 +120,15 @@ this. Senders should not rely on it — some head units reject a frame arriving
 from a different channel mid-message — so serialise a whole multi-frame message
 per channel before switching.
 
+**Fragment boundaries are per channel; the TLS record sequence is global.** All
+channels share one record sequence, so a sender must encrypt at the moment it
+transmits, in transmission order. Encrypting a whole fragmented message ahead of
+time and then slotting another channel's record between its fragments produces
+records the peer cannot decrypt at all — and the failure presents as
+`bad_record_mac`, which reads exactly like a certificate or key-derivation fault
+rather than an ordering one. On a sender with more than one thread, this means
+encryption belongs inside whatever lock serialises writes, not before it.
+
 ### Payload
 
 After decryption, every message payload starts with a big-endian `uint16`
@@ -128,6 +137,15 @@ because it is part of the reassembled payload rather than of each frame.
 
 Bodies are serialised protobuf, except the version exchange, the TLS handshake
 and the media indications, which are raw bytes.
+
+**Message ids overlap between namespaces, and dispatch must branch on the
+channel's service before the id.** `0x8001` is a start indication on a media
+channel, an input event on the input channel and a sensor subscribe request on
+the sensor channel; `0x8002` is a stop indication, a binding request and a
+sensor subscribe response. The same applies on the control channel, where
+`0x0001` is a version request while on a media channel it is media without a
+timestamp. A flat dispatch on the id alone routes input bindings into the media
+handler and looks like it works.
 
 ## Channels
 
@@ -250,9 +268,16 @@ Everything up to and including auth complete is **plaintext**. Everything after
 is **encrypted**. Auth complete is what gates the phone into sending the service
 discovery request — it is the head unit declaring the TLS session acceptable.
 
+Two message bodies are undocumented: auth complete carries a result, and the
+teardown response is empty. Neither is described anywhere public, so an
+implementation should send a plausible protobuf and must not key behaviour off
+a peer's choice of field numbers there.
+
 One inconsistency to absorb: implementations disagree on whether ping is sent
 plaintext or encrypted, and both occur in the field. Accept either; send the
-response encrypted.
+response encrypted. The exception is per message id rather than per session — a
+peer that pings in plaintext is not thereby declaring it will do everything in
+plaintext.
 
 ### Version exchange
 
@@ -319,7 +344,11 @@ per channel — not honouring it makes head units drop frames or stall the
 channel.
 
 The microphone channel reverses direction: the head unit sends media and the
-phone acknowledges.
+phone acknowledges. Note the asymmetry this creates: the credit window is
+announced in the setup response, which is head unit to phone, so on the one
+channel where the phone is the receiver the window is announced by the sender to
+itself. No phone-to-head-unit message carries a window. Treat the head unit as
+self-limiting to the same number, and do not rely on being able to negotiate it.
 
 ### Video focus
 

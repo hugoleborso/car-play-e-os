@@ -131,15 +131,23 @@ public class AapLink(
 
         val payload = Messages.frame(messageId, body)
         val fragmentSize = minOf(FrameHeader.SEND_FRAGMENT_SIZE, transport.maxWriteSize)
-        val frames = FrameEncoder.encode(
-            channel = channel,
-            flags = flags,
-            payload = payload,
-            fragmentSize = fragmentSize,
-            encrypt = if (encrypt) { plain -> tls.wrap(plain) } else null,
-        )
 
+        // Encryption happens inside the lock, not before it. Fragment boundaries
+        // are per channel, but the TLS record sequence is global: every channel
+        // shares one. So records have to be produced in the order they are
+        // transmitted. Encrypting outside the lock lets two concurrent senders
+        // interleave their records and then write them in a different order,
+        // which the peer cannot decrypt at all — and the failure surfaces as
+        // bad_record_mac, which reads exactly like a certificate or key
+        // derivation fault rather than an ordering one.
         writeLock.withLock {
+            val frames = FrameEncoder.encode(
+                channel = channel,
+                flags = flags,
+                payload = payload,
+                fragmentSize = fragmentSize,
+                encrypt = if (encrypt) { plain -> tls.wrap(plain) } else null,
+            )
             // A multi-frame message goes out in one burst. Some head units reject
             // a frame from another channel arriving mid-message, so we do not
             // interleave on send even though we tolerate it on receive.
