@@ -5,6 +5,7 @@
 
 package org.openaap.android.app
 
+import android.Manifest
 import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -12,8 +13,10 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -22,31 +25,33 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 
 /**
  * The screen someone actually looks at while standing next to a car.
  *
- * This exists because of a constraint that is easy to miss when designing from
- * a desk: the phone has one USB port, and during a test it is plugged into the
- * head unit. `adb` cannot see the phone at all while the interesting things are
- * happening. Without a screen, the person running the test has no idea whether
- * anything worked until they get home, unplug, and pull a file — by which point
- * they have lost the chance to try the obvious next thing.
+ * It exists because of a constraint that is easy to miss from a desk: the phone
+ * has one USB port, and during a test it is plugged into the head unit. `adb`
+ * cannot reach the phone while any of the interesting things are happening.
  *
- * So the screen shows what to do, which identity is being tried, and what the
- * head unit said about each one, live, and offers to share the report by any
- * means the phone has.
+ * Its hardest job is explaining **nothing happening**, which is the most common
+ * outcome and the least actionable. A missing device feature, a refused
+ * permission, a bad cable and a car that never tried all look identical from
+ * the outside and have different fixes. So the screen leads with what it can
+ * check locally, then shows a timestamped log of everything the cable actually
+ * did, and only then the results.
  */
 public class ProbeActivity : Activity() {
 
     private lateinit var runner: ProbeRunner
     private lateinit var container: LinearLayout
 
-    private val updates = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            render()
-        }
+    private val refresh = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) = render()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,80 +60,113 @@ public class ProbeActivity : Activity() {
 
         container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(24), dp(20), dp(32))
+            setPadding(dp(20), dp(20), dp(20), dp(32))
         }
-        setContentView(ScrollView(this).apply { addView(container) })
+        val scroll = ScrollView(this).apply {
+            addView(container)
+            isFillViewport = true
+        }
+        setContentView(scroll)
+
+        // Apps targeting API 35 draw edge to edge, so without this the first
+        // heading sits under the status bar and the last control under the
+        // navigation bar -- which is exactly what makes a button look dead.
+        ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.updatePadding(top = bars.top, bottom = bars.bottom, left = bars.left, right = bars.right)
+            insets
+        }
+
+        requestNotificationPermission()
+        render()
+    }
+
+    /**
+     * The notification is the only sign of life while the phone is in the car,
+     * and on API 33+ it needs a runtime grant that the app never asked for.
+     * Without it a working probe is indistinguishable from a dead one.
+     */
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         render()
     }
 
     override fun onStart() {
         super.onStart()
-        val filter = IntentFilter(ProbeRunner.ACTION_PROBE_UPDATED)
+        val filter = IntentFilter().apply {
+            addAction(ProbeRunner.ACTION_PROBE_UPDATED)
+            addAction(ProbeEvents.ACTION_EVENTS_CHANGED)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(updates, filter, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(refresh, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(updates, filter)
+            registerReceiver(refresh, filter)
         }
         render()
     }
 
     override fun onStop() {
         super.onStop()
-        runCatching { unregisterReceiver(updates) }
+        runCatching { unregisterReceiver(refresh) }
     }
 
     private fun render() {
         container.removeAllViews()
         val records = runner.records()
+        val events = ProbeEvents.recent(this)
 
         title(getString(R.string.probe_title))
         paragraph(getString(R.string.probe_intro))
+        statusCard(records, events)
 
-        statusCard(records)
+        diagnostics()
+        if (events.isNotEmpty()) eventLog(events)
         if (records.isEmpty()) instructions()
 
         if (records.isNotEmpty()) {
             heading(getString(R.string.probe_results_heading))
             records.forEach { resultRow(it) }
-
             records.firstOrNull { it.headUnitCertificate != null }?.let { record ->
                 heading(getString(R.string.probe_certificate_heading))
                 paragraph(getString(R.string.probe_certificate_note))
                 monospace(record.headUnitCertificate!!)
             }
-
             verdict(records)
         }
 
         actions(records)
     }
 
-    /**
-     * The status card carries the one thing the person needs at a glance, and it
-     * distinguishes "nothing happened" from "nothing worked" — which look
-     * identical in a log and mean completely different things.
-     */
-    private fun statusCard(records: List<ProbeRecord>) {
-        val accepted = records.any { it.accepted }
+    private fun statusCard(records: List<ProbeRecord>, events: List<ProbeEvents.Event>) {
         val (statusText, colour) = when {
-            accepted -> getString(R.string.probe_status_accepted) to ACCENT_GOOD
+            records.any { it.accepted } -> getString(R.string.probe_status_accepted) to ACCENT_GOOD
             runner.complete -> getString(R.string.probe_status_complete, records.size) to ACCENT_NEUTRAL
-            records.isEmpty() -> getString(R.string.probe_status_waiting) to ACCENT_NEUTRAL
-            records.all { it.noContact } ->
-                getString(R.string.probe_status_no_contact) to ACCENT_WARN
-            else -> getString(
-                R.string.probe_status_running,
-                runner.position,
-                runner.size,
-            ) to ACCENT_NEUTRAL
+            records.isEmpty() && events.isEmpty() ->
+                getString(R.string.probe_status_waiting) to ACCENT_NEUTRAL
+            records.isEmpty() ->
+                getString(R.string.probe_status_seen_nothing_recorded) to ACCENT_WARN
+            records.all { it.noContact } -> getString(R.string.probe_status_no_contact) to ACCENT_WARN
+            else -> getString(R.string.probe_status_running, runner.position, runner.size) to ACCENT_NEUTRAL
         }
 
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-            setBackgroundColor(surfaceColour())
-        }
+        val card = card()
         card.addView(
             TextView(this).apply {
                 text = statusText
@@ -145,7 +183,107 @@ public class ProbeActivity : Activity() {
                 setPadding(0, dp(6), 0, 0)
             }
         )
-        container.addView(card, marginParams(top = 8, bottom = 20))
+        events.lastOrNull()?.let { last ->
+            card.addView(
+                TextView(this).apply {
+                    text = getString(R.string.probe_last_activity, last.at, last.text)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                    alpha = 0.75f
+                    setPadding(0, dp(6), 0, 0)
+                }
+            )
+        }
+        container.addView(card, marginParams(top = 8, bottom = 4))
+    }
+
+    /**
+     * The section that answers "nothing is happening". Failures come first,
+     * because a passing check is not what anyone is here to read.
+     */
+    private fun diagnostics() {
+        val checks = ProbeDiagnostics.run(this)
+        heading(getString(R.string.diag_heading))
+
+        val problems = checks.filterNot { it.passed }
+        if (problems.isEmpty()) {
+            paragraph(getString(R.string.diag_all_clear))
+        }
+
+        (problems + checks.filter { it.passed }).forEach { check ->
+            val colour = when {
+                check.passed -> ACCENT_GOOD
+                check.severity == ProbeDiagnostics.Severity.BLOCKING -> ACCENT_WALL
+                check.severity == ProbeDiagnostics.Severity.DEGRADED -> ACCENT_WARN
+                else -> ACCENT_NEUTRAL
+            }
+            val row = card()
+            row.addView(
+                TextView(this).apply {
+                    text = (if (check.passed) "✓  " else "✕  ") + check.title
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(colour)
+                }
+            )
+            row.addView(
+                TextView(this).apply {
+                    text = check.detail
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                    alpha = 0.8f
+                    setPadding(0, dp(4), 0, 0)
+                }
+            )
+            check.remedy?.let { remedy ->
+                row.addView(
+                    TextView(this).apply {
+                        text = remedy
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                        setTextColor(colour)
+                        setPadding(0, dp(6), 0, 0)
+                    }
+                )
+            }
+            container.addView(row, marginParams(bottom = 8))
+        }
+
+        val fixes = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        if (checks.any { it.title == getString(R.string.diag_notifications) && !it.passed }) {
+            fixes.addView(
+                Button(this).apply {
+                    setText(R.string.diag_open_settings)
+                    setOnClickListener { openAppSettings() }
+                }
+            )
+        }
+        if (fixes.childCount > 0) container.addView(fixes, marginParams(bottom = 8))
+    }
+
+    /**
+     * Everything the cable actually did, with times. This is what distinguishes
+     * "the car never tried" from "the car tried and we failed", and neither is
+     * visible any other way while the phone is plugged into a head unit.
+     */
+    private fun eventLog(events: List<ProbeEvents.Event>) {
+        heading(getString(R.string.events_heading))
+        val card = card()
+        events.forEach { event ->
+            card.addView(
+                TextView(this).apply {
+                    text = "${event.at}  ${event.text}"
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+                    setTypeface(Typeface.MONOSPACE)
+                    setTextColor(
+                        when (event.kind) {
+                            ProbeEvents.Kind.FAULT -> ACCENT_WALL
+                            ProbeEvents.Kind.ATTENTION -> ACCENT_WARN
+                            ProbeEvents.Kind.PROGRESS -> ACCENT_NEUTRAL
+                        }
+                    )
+                    setPadding(0, dp(3), 0, dp(3))
+                }
+            )
+        }
+        container.addView(card, marginParams(bottom = 8))
     }
 
     private fun instructions() {
@@ -173,12 +311,7 @@ public class ProbeActivity : Activity() {
             record.noContact -> ACCENT_WARN
             else -> ACCENT_WALL
         }
-
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            setBackgroundColor(surfaceColour())
-        }
+        val row = card()
         row.addView(
             TextView(this).apply {
                 text = "${record.index}/${record.total}  ${record.credential}"
@@ -195,8 +328,8 @@ public class ProbeActivity : Activity() {
                 setPadding(0, dp(4), 0, 0)
             }
         )
-        // The interpretation, not just the code. Someone reading this in a car
-        // park should not have to look up what alert 48 means.
+        // The interpretation, not just the code. Nobody should have to look up
+        // what alert 48 means while standing in a car park.
         record.alertMeaning?.let { meaning ->
             row.addView(
                 TextView(this).apply {
@@ -236,7 +369,10 @@ public class ProbeActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.START
         }
-        if (records.isNotEmpty()) {
+        // Sharing is offered whenever there is anything to send, including a log
+        // with no results in it -- "the cable did nothing" is a finding and is
+        // worth receiving.
+        if (records.isNotEmpty() || ProbeEvents.all(this).isNotEmpty()) {
             row.addView(
                 Button(this).apply {
                     setText(R.string.probe_share)
@@ -249,11 +385,19 @@ public class ProbeActivity : Activity() {
                 setText(R.string.probe_restart)
                 setOnClickListener {
                     runner.reset()
+                    ProbeEvents.clear(this@ProbeActivity)
+                    // Without this the button looks dead when there was nothing
+                    // to clear, which is exactly when someone presses it.
+                    Toast.makeText(
+                        this@ProbeActivity,
+                        R.string.probe_restarted,
+                        Toast.LENGTH_SHORT,
+                    ).show()
                     render()
                 }
             }
         )
-        container.addView(row, marginParams(top = 20))
+        container.addView(row, marginParams(top = 16))
 
         container.addView(
             TextView(this).apply {
@@ -265,35 +409,53 @@ public class ProbeActivity : Activity() {
         )
     }
 
+    private fun openAppSettings() {
+        runCatching {
+            startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(Uri.fromParts("package", packageName, null))
+            )
+        }
+    }
+
     /**
-     * Shares the report through whatever the phone has.
-     *
-     * Deliberately not tied to `adb`: the whole point is that the cable is in
-     * the car. Email, a messaging app or a file manager all work, and the person
-     * can send the report before they have driven home.
+     * Shares by any means the phone has, deliberately not tied to `adb`: the
+     * whole point is that the cable is in the car. The report goes as an
+     * attachment and the event log inline, so a short reply carries both.
      */
     private fun shareReport() {
         val file = runner.reportFile
-        if (!file.isFile) return
-        val uri = runCatching {
-            FileProvider.getUriForFile(this, "$packageName.reports", file)
-        }.getOrNull() ?: return
-
-        startActivity(
-            Intent.createChooser(
-                Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    putExtra(Intent.EXTRA_SUBJECT, getString(R.string.probe_share_subject))
-                    putExtra(Intent.EXTRA_TEXT, runCatching { file.readText() }.getOrDefault(""))
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val events = ProbeEvents.all(this).joinToString("\n") { "${it.at}  ${it.kind}  ${it.text}" }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.probe_share_subject))
+            putExtra(
+                Intent.EXTRA_TEXT,
+                buildString {
+                    appendLine(getString(R.string.probe_share_subject))
+                    appendLine()
+                    appendLine(runCatching { file.readText() }.getOrDefault(""))
+                    appendLine("--- events ---")
+                    appendLine(events)
                 },
-                getString(R.string.probe_share),
             )
-        )
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        if (file.isFile) {
+            runCatching { FileProvider.getUriForFile(this, "$packageName.reports", file) }
+                .getOrNull()
+                ?.let { intent.putExtra(Intent.EXTRA_STREAM, it) }
+        }
+        startActivity(Intent.createChooser(intent, getString(R.string.probe_share)))
     }
 
     // --- small view helpers ------------------------------------------------
+
+    private fun card(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(14), dp(12), dp(14), dp(12))
+        setBackgroundColor(surfaceColour())
+    }
 
     private fun title(content: String) = container.addView(
         TextView(this).apply {
@@ -312,7 +474,7 @@ public class ProbeActivity : Activity() {
             setTypeface(Typeface.MONOSPACE, Typeface.BOLD)
             alpha = 0.8f
         },
-        marginParams(top = 22, bottom = 8)
+        marginParams(top = 20, bottom = 8)
     )
 
     private fun paragraph(content: String) = container.addView(
@@ -341,15 +503,13 @@ public class ProbeActivity : Activity() {
             bottomMargin = dp(bottom)
         }
 
-    private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density).toInt()
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
-    /** A surface that reads as raised in light mode and recessed in dark. */
     private fun surfaceColour(): Int {
         val night = resources.configuration.uiMode and
             android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
-        return if (night) Color.rgb(28, 32, 34) else Color.rgb(238, 240, 238)
+        return if (night) Color.rgb(28, 32, 34) else Color.rgb(236, 239, 237)
     }
 
     private companion object {

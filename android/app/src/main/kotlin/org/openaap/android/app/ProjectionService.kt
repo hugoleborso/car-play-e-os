@@ -86,6 +86,12 @@ public class ProjectionService : Service() {
         val transport = UsbAccessoryTransport.open(manager, accessory)
         if (transport == null) {
             Log.e(TAG, "framework declined to open the accessory")
+            ProbeEvents.record(
+                this,
+                ProbeEvents.Kind.FAULT,
+                "Android refused to open the accessory. Usually the per-accessory permission was " +
+                    "declined, or the car disconnected first.",
+            )
             stopSelf()
             return
         }
@@ -110,6 +116,11 @@ public class ProjectionService : Service() {
             // The interesting failures land here, and on a phone in a car the
             // log is the only diagnostic anyone will have.
             Log.e(TAG, "session ended with an error", e)
+            ProbeEvents.record(
+                this,
+                ProbeEvents.Kind.FAULT,
+                "Session failed: ${e::class.simpleName}: ${e.message}",
+            )
         } finally {
             session.set(null)
             runCatching { transport.close() }
@@ -134,6 +145,11 @@ public class ProjectionService : Service() {
 
     private fun runProbe(transport: org.openaap.transport.Transport) {
         val runner = ProbeRunner(this)
+        ProbeEvents.record(
+            this,
+            ProbeEvents.Kind.PROGRESS,
+            "Presenting identity ${runner.position + 1} of ${runner.size} and waiting for the car",
+        )
         val result = runner.runNext(transport)
         if (result == null) {
             Log.i(TAG, "probe matrix already complete; report at ${runner.reportFile.absolutePath}")
@@ -141,6 +157,12 @@ public class ProjectionService : Service() {
             return
         }
         Log.i(TAG, "probe result: ${result.line()}")
+        ProbeEvents.record(
+            this,
+            if (result.succeeded) ProbeEvents.Kind.PROGRESS else ProbeEvents.Kind.ATTENTION,
+            "Probe ${runner.position}/${runner.size} ${result.credentialName}: ${result.stage.name}" +
+                (result.alert?.let { " (${it.label})" } ?: ""),
+        )
         updateNotification(
             getString(
                 R.string.probe_progress,

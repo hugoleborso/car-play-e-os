@@ -42,4 +42,46 @@
 
     <string name="probe_complete">Probe complete — share the report</string>
     <string name="probe_progress">Probe %1$d: %2$s → %3$s</string>
+
+    <string name="probe_status_seen_nothing_recorded">The cable did something, but no probe finished</string>
+    <string name="probe_last_activity">Last activity %1$s — %2$s</string>
+    <string name="probe_restarted">Cleared. Plug into the car to start again.</string>
+
+    <!-- Diagnostics: why nothing is happening. -->
+    <string name="diag_heading">Checks</string>
+    <string name="diag_all_clear">Everything checkable from the phone is in order. If nothing still happens when you plug in, the car is not offering a connection — that is a fact about the car, not about the app.</string>
+
+    <string name="diag_usb_feature">Phone supports USB accessories</string>
+    <string name="diag_usb_feature_ok">The phone can be switched into accessory mode by a car.</string>
+    <string name="diag_usb_feature_missing">This phone reports no USB accessory support, so a car can never hand it a connection.</string>
+    <string name="diag_usb_feature_remedy">Nothing in this app can work around this. Check the phone is not in a restricted or work profile.</string>
+
+    <string name="diag_accessory">Car connected right now</string>
+    <string name="diag_accessory_none">No accessory is attached.</string>
+    <string name="diag_accessory_none_remedy">Normal when the phone is not plugged into the car. If it *is* plugged in and this still says nothing: try another cable, use the car\'s data USB port rather than a charge-only one, and set the phone\'s USB mode to charging rather than file transfer.</string>
+    <string name="diag_accessory_unrecognised">\n  ↳ not recognised as a head unit — send these strings back</string>
+    <string name="diag_accessory_no_permission">\n  ↳ Android has not granted us access to it</string>
+    <string name="diag_accessory_permission_remedy">Unplug and plug back in, and accept the dialog that asks whether to open this app for the accessory. Ticking \"always\" makes later connections silent.</string>
+
+    <string name="diag_notifications">Notifications allowed</string>
+    <string name="diag_notifications_ok">The ongoing notification can show progress while the phone is in the car.</string>
+    <string name="diag_notifications_denied">Denied. The probe still runs, but it has no way to show progress while the cable is in the car.</string>
+    <string name="diag_notifications_remedy">Allow notifications for this app so a running probe is visible.</string>
+
+    <string name="diag_storage">Report can be saved</string>
+    <string name="diag_storage_remedy">Results cannot be written, so nothing will survive unplugging. Check the phone has free space.</string>
+
+    <string name="diag_battery">Battery restrictions</string>
+    <string name="diag_battery_ok">The app is exempt, so a session will not be killed mid-probe.</string>
+    <string name="diag_battery_restricted">The app is battery-managed. Android may kill a session before the car finishes talking.</string>
+    <string name="diag_battery_remedy">If probes keep stopping halfway, set this app\'s battery usage to unrestricted.</string>
+
+    <string name="diag_activity">Has a cable ever woken the app</string>
+    <string name="diag_activity_none">Never. Nothing has plugged into this phone since the app was installed.</string>
+    <string name="diag_activity_some">%1$d events recorded, most recently at %2$s.</string>
+    <string name="diag_activity_remedy">This is the important one. If it stays empty after plugging into the car, the car never switched the phone into accessory mode — so nothing the app does could have run. Suspect the cable, the port, or Android Auto not being enabled on the car, in that order.</string>
+
+    <string name="diag_open_settings">Open app settings</string>
+
+    <string name="events_heading">What the cable did</string>
 </resources>
