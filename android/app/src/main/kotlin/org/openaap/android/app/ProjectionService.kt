@@ -89,6 +89,10 @@ public class ProjectionService : Service() {
         }
 
         try {
+            if (probeMode()) {
+                runProbe(transport)
+                return
+            }
             val tls = AapTlsEngine(TlsRole.SERVER, credentials())
             val link = AapLink(transport, tls)
             val phoneSession = PhoneSession(
@@ -109,6 +113,40 @@ public class ProjectionService : Service() {
             runCatching { transport.close() }
             stopSelf()
         }
+    }
+
+    /**
+     * Whether to spend this connection measuring rather than projecting.
+     *
+     * The default is to measure. Until we know whether a head unit will accept
+     * an identity we are allowed to generate, a full projection session cannot
+     * get past its first minute anyway, and the measurement is the thing worth
+     * bringing back from the car. Turn it off with:
+     *
+     * ```
+     * adb shell am startservice -n org.openaap.projection/.ProjectionService --ez probe false
+     * ```
+     */
+    private fun probeMode(): Boolean =
+        getSharedPreferences("openaap", Context.MODE_PRIVATE).getBoolean("probe", true)
+
+    private fun runProbe(transport: org.openaap.transport.Transport) {
+        val runner = ProbeRunner(this)
+        val result = runner.runNext(transport)
+        if (result == null) {
+            Log.i(TAG, "probe matrix already complete; report at ${runner.reportFile.absolutePath}")
+            updateNotification(getString(R.string.probe_complete))
+            return
+        }
+        Log.i(TAG, "probe result: ${result.line()}")
+        updateNotification(
+            getString(
+                R.string.probe_progress,
+                runner.position,
+                result.credentialName,
+                result.stage.name,
+            )
+        )
     }
 
     /**

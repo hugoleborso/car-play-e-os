@@ -26,7 +26,7 @@ hardware.
 | Head-unit emulator | in progress |
 | Video and audio pipeline | in progress |
 | Car UI | not started |
-| Certificate probe matrix | done |
+| Certificate probe matrix | done, runnable on-device, report pulled over adb |
 
 ## Why this is hard, in one paragraph
 
@@ -108,6 +108,7 @@ clean-room two-team split does not make that one safe.
 4. [Android integration](docs/04-android-integration.md) — what a plain APK can do, and where the ROM starts
 5. [Alternatives considered](docs/05-alternatives-considered.md) — MirrorLink and SmartDeviceLink, and why both are closed
 6. [Provenance](docs/07-provenance.md) — where information may come from
+7. [Field test protocols](docs/11-field-test-protocols.md) — how to test this against a real car with nothing but a cable and a laptop
 
 ## Licence
 
