@@ -2,15 +2,31 @@
 <!--
   Which USB accessories this app claims.
 
-  Match on manufacturer and model only. AccessoryFilter compares every declared
-  field by exact string equality, and the version string differs between head
-  units: implementations in the wild send "1.0" and "2.0.1", and a given car
-  may send something else entirely. Declaring a version would silently stop us
-  matching on hardware nobody has tested against.
+  The bare <usb-accessory /> matches everything, and it is deliberate.
 
-  Both model strings are claimed because head units use both.
+  AccessoryFilter compares each declared field by exact string equality and
+  treats an absent attribute as "don't care", so an element with no attributes
+  claims every accessory the phone is ever switched into accessory mode for.
+  Claiming narrowly looks tidier and produces the single worst outcome this
+  project can have: a head unit that identifies itself with strings we did not
+  predict never launches us at all, and the person in the car sees nothing
+  happen. Nothing happening is indistinguishable from a bad cable, a
+  charge-only port, an unlicensed head unit and a bug in our code — four
+  different fixes behind one symptom.
+
+  Claiming everything converts that into data. UsbAttachActivity records the
+  six identifying strings and refuses to start a session for anything it does
+  not recognise, so the widened filter changes what we learn, not what we do.
+  The cost is that we appear in the chooser for other accessories; on a phone
+  running a de-Googled ROM with no other projection app installed, that is a
+  price worth paying for the strings.
+
+  The specific entries below are kept because they document what a head unit is
+  expected to send, and because they are what UsbAccessoryTransport.isHeadUnit
+  matches on.
 -->
 <resources>
     <usb-accessory manufacturer="Android" model="Android Auto" />
     <usb-accessory manufacturer="Android" model="Android Open Automotive Protocol" />
+    <usb-accessory />
 </resources>

@@ -87,31 +87,42 @@ and is not one.
 
 This is the cheapest useful data point in the whole exercise.
 
+**No computer needed.** The app claims *every* USB accessory, not only the ones
+we expect, precisely so that an unfamiliar head unit still wakes it — and it
+writes the strings to its own screen under **What the cable did**. Recognising
+the device and recording it are deliberately separate: it records first, then
+decides, so a car we do not recognise still tells us who it is.
+
 **Steps**
 
 1. Get the APK from the [latest release](../../releases/latest) and install it,
    either by opening it on the phone or with `adb install -r openaap-*.apk`.
-2. Clear the log: `adb logcat -c`
-3. Unplug from the computer, plug into the car, wait ten seconds, unplug.
-4. Back at the computer: `adb logcat -d -s openaap.attach openaap.service > attach.txt`
+2. Open the app once. Allow notifications. Read the **Checks** section — if
+   anything there is red, fix it before going to the car.
+3. Plug into the car, wait ten seconds, unplug.
+4. Open the app again and read **What the cable did**.
 
-**Record.** The whole of `attach.txt`. The interesting line is either
-`head unit attached: <manufacturer>/<model>` or
-`ignoring accessory manufacturer='…' model='…' version='…'`.
+**Record.** The block of `manufacturer = … / model = … / description = …` lines,
+verbatim. **Share report** sends them along with everything else.
 
 **What it means**
 
 | Outcome | Meaning |
 | --- | --- |
-| `head unit attached` | Our filter matches. Continue to P3. |
-| `ignoring accessory …` | The head unit identifies itself differently. **Send me those strings** — it is a one-line fix, and it is new information. |
-| Nothing at all in the log | The phone never entered accessory mode. Either the head unit did not try, or Android did not route it to us. See below. |
+| `Head unit recognised, starting a session` | Our match works. Continue to P3. |
+| `Connected, but not recognised as a head unit` | The head unit identifies itself differently. **Send me those strings** — it is a one-line fix, and it is new information nobody has published for a MIB2. |
+| Nothing in the log at all | The phone never entered accessory mode. Either the head unit did not try, or Android did not route it to us. See below. |
 | A system dialog asking which app to open | Tick "always use this app". On /e/OS we should be the only candidate. |
 
-If nothing appears at all, check `adb shell pm list features | grep accessory`
-returns `android.hardware.usb.accessory`, and set the phone's USB mode to
-charging-only rather than file transfer before plugging into the car — some head
+If nothing appears at all, the **Has a cable ever woken the app** check in the
+app says the same thing and is the one to trust. Then: change the cable first,
+use the car's data USB port rather than a charge-only one, and set the phone's
+USB mode to charging rather than file transfer before plugging in — some head
 units are confused by a phone that presents itself as storage first.
+
+With a computer to hand, `adb logcat -d -s openaap.attach openaap.service
+openaap.events openaap.probe` shows the same events plus the framework's own
+messages, which is worth having if the phone-side log stays empty.
 
 ---
 

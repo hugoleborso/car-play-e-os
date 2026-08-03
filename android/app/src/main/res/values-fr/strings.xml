@@ -40,4 +40,46 @@
 
     <string name="probe_complete">Sonde terminée — partagez le rapport</string>
     <string name="probe_progress">Sonde %1$d : %2$s → %3$s</string>
+
+    <string name="probe_status_seen_nothing_recorded">Le câble a fait quelque chose, mais aucune sonde n\'est allée au bout</string>
+    <string name="probe_last_activity">Dernière activité %1$s — %2$s</string>
+    <string name="probe_restarted">Effacé. Rebranchez dans la voiture pour recommencer.</string>
+
+    <!-- Diagnostics : pourquoi il ne se passe rien. -->
+    <string name="diag_heading">Vérifications</string>
+    <string name="diag_all_clear">Tout ce qui est vérifiable depuis le téléphone est en ordre. S\'il ne se passe toujours rien au branchement, c\'est que la voiture ne propose pas de connexion — c\'est un fait sur la voiture, pas sur l\'application.</string>
+
+    <string name="diag_usb_feature">Le téléphone gère les accessoires USB</string>
+    <string name="diag_usb_feature_ok">Le téléphone peut être basculé en mode accessoire par une voiture.</string>
+    <string name="diag_usb_feature_missing">Ce téléphone ne déclare aucun support des accessoires USB : une voiture ne pourra jamais lui passer de connexion.</string>
+    <string name="diag_usb_feature_remedy">Rien dans cette application ne peut contourner cela. Vérifiez que le téléphone n\'est pas dans un profil restreint ou professionnel.</string>
+
+    <string name="diag_accessory">Voiture connectée en ce moment</string>
+    <string name="diag_accessory_none">Aucun accessoire branché.</string>
+    <string name="diag_accessory_none_remedy">Normal si le téléphone n\'est pas branché dans la voiture. Si c\'est le cas et que rien n\'apparaît : changez de câble, utilisez le port USB de données de la voiture et non un port de charge, et réglez le mode USB du téléphone sur « charge » plutôt que « transfert de fichiers ».</string>
+    <string name="diag_accessory_unrecognised">\n  ↳ non reconnu comme autoradio — renvoyez-moi ces chaînes</string>
+    <string name="diag_accessory_no_permission">\n  ↳ Android ne nous en a pas donné l\'accès</string>
+    <string name="diag_accessory_permission_remedy">Débranchez puis rebranchez, et acceptez la boîte de dialogue qui demande d\'ouvrir cette application pour l\'accessoire. Cocher « toujours » rend les branchements suivants silencieux.</string>
+
+    <string name="diag_notifications">Notifications autorisées</string>
+    <string name="diag_notifications_ok">La notification permanente peut afficher la progression pendant que le téléphone est dans la voiture.</string>
+    <string name="diag_notifications_denied">Refusées. La sonde fonctionne quand même, mais elle n\'a aucun moyen d\'afficher sa progression tant que le câble est dans la voiture.</string>
+    <string name="diag_notifications_remedy">Autorisez les notifications pour cette application afin de voir une sonde en cours.</string>
+
+    <string name="diag_storage">Le rapport peut être enregistré</string>
+    <string name="diag_storage_remedy">Impossible d\'écrire les résultats : rien ne survivra au débranchement. Vérifiez l\'espace libre du téléphone.</string>
+
+    <string name="diag_battery">Restrictions de batterie</string>
+    <string name="diag_battery_ok">L\'application est exemptée : une session ne sera pas tuée en pleine sonde.</string>
+    <string name="diag_battery_restricted">L\'application est gérée par l\'économiseur de batterie. Android peut tuer une session avant que la voiture ait fini de parler.</string>
+    <string name="diag_battery_remedy">Si les sondes s\'arrêtent systématiquement à mi-chemin, passez l\'usage de la batterie de cette application sur « sans restriction ».</string>
+
+    <string name="diag_activity">Un câble a-t-il déjà réveillé l\'application</string>
+    <string name="diag_activity_none">Jamais. Rien n\'a été branché sur ce téléphone depuis l\'installation.</string>
+    <string name="diag_activity_some">%1$d évènements enregistrés, le dernier à %2$s.</string>
+    <string name="diag_activity_remedy">C\'est la ligne importante. Si elle reste vide après un branchement dans la voiture, c\'est que la voiture n\'a jamais basculé le téléphone en mode accessoire — donc rien de ce que fait l\'application n\'a pu s\'exécuter. Suspectez le câble, puis le port, puis Android Auto non activé sur la voiture, dans cet ordre.</string>
+
+    <string name="diag_open_settings">Ouvrir les paramètres</string>
+
+    <string name="events_heading">Ce que le câble a fait</string>
 </resources>
