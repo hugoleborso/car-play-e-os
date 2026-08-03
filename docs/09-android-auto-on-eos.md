@@ -9,11 +9,14 @@ capable and any later failure of ours is ours.
 
 Written for someone with the phone in one hand and the cable in the other.
 
-**Target.** Fairphone 6, /e/OS 3.3 or later. /e/OS 3.x is Android 15 (API 35);
-/e/OS 4.x, from June 2026, is Android 16 (API 36) on the FP6. Both work and the
-steps are the same; the two places they differ are called out. Below /e/OS 3.3
-on Android 15 this does not work at all and no amount of sideloading fixes it —
-that is the regression /e/OS 3.3 repaired. Below Android 13 it has never worked.
+**Target.** Fairphone 6, /e/OS 3.3 or later. An /e/OS version number is not an
+Android version — /e/OS ships parallel `-a13`, `-a14`, `-a15` and `-a16`
+branches of the same release. On the FP6, /e/OS 3.x is Android 15 (API 35), and
+4.1.1 (July 2026) moved it to Android 16 (API 36). Both work and the steps are
+the same. Below /e/OS 3.3 on Android 15 this does not work at all and no amount
+of sideloading fixes it — that is the regression /e/OS 3.3 repaired. Below
+Android 13 it has never worked on any /e/OS build, and people lose days to that
+because they read the /e/OS version and assumed.
 
 **You need:** the phone, a short known-good USB **data** cable, the car, and a
 computer with `adb`. Set the computer up per [P1](11-field-test-protocols.md).

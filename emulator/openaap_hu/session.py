@@ -61,8 +61,6 @@ from .generated import control_pb2, descriptors_pb2, input_pb2, media_pb2, senso
 from .pki import Credential
 from .profile import (
     DIAL_SCROLL,
-    FPS_BY_CADENCE,
-    PIXELS_BY_GEOMETRY,
     ChannelIdAllocator,
     ChannelMap,
     ChannelSpec,
@@ -1209,9 +1207,7 @@ class HeadUnitSession:
             link=control_pb2.LINK_WIRELESS if self.profile.link_wireless else control_pb2.LINK_WIRED,
         )
         for spec in self.profile.channels:
-            announcement.channel.append(
-                _channel_entry(spec, self.channel_ids[spec.kind], self.max_unacked)
-            )
+            announcement.channel.append(_channel_entry(spec, self.channel_ids[spec.kind]))
         return announcement
 
     # ---------------------------------------------------------------- plumbing
@@ -1492,10 +1488,13 @@ def _entry_kind(entry: descriptors_pb2.ChannelEntry) -> str:
     return "empty"
 
 
-def _channel_entry(
-    spec: ChannelSpec, channel_id: int, max_unacked: int
-) -> descriptors_pb2.ChannelEntry:
-    """Build one discovery entry: an id plus exactly one sub-descriptor."""
+def _channel_entry(spec: ChannelSpec, channel_id: int) -> descriptors_pb2.ChannelEntry:
+    """Build one discovery entry: an id plus exactly one sub-descriptor.
+
+    ``buffered_messages`` on a sink is advisory -- how much the sink can hold --
+    and is not the credit window. The binding number is ``max_unacked`` in the
+    setup reply, which is negotiated per stream rather than announced here.
+    """
     entry = descriptors_pb2.ChannelEntry(channel_id=channel_id)
     kind = spec.kind
 
@@ -1563,11 +1562,4 @@ def _channel_entry(
     else:  # pragma: no cover - ServiceKind.CONTROL is never advertised
         raise SessionError(f"no descriptor shape for {kind.value}")
 
-    _ = max_unacked  # advisory buffering lives on the sink; the window is in setup
     return entry
-
-
-def describe_picture_format(fmt: media_pb2.PictureFormat) -> str:
-    """Human-readable geometry, for the trace and the CLI banner."""
-    width, height = PIXELS_BY_GEOMETRY.get(fmt.geometry, (0, 0))
-    return f"{width}x{height}@{FPS_BY_CADENCE.get(fmt.cadence, 0)}"

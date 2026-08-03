@@ -42,7 +42,7 @@ Consequences:
   shows apps it considers legitimately installed, and on a de-Googled phone
   most navigation apps do not appear. What actually works, and the two
   developer settings that change the answer, is in
-  [docs/09-android-auto-on-eos.md](../../docs/09-android-auto-on-eos.md).
+  [docs/09-android-auto-on-eos.md](../../../docs/09-android-auto-on-eos.md).
 
 ## One naming collision worth knowing about
 
