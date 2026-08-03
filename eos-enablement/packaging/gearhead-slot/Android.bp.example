@@ -1,0 +1,71 @@
+// Copyright 2026 The openaap authors.
+// Licensed under the Apache License, Version 2.0.
+//
+// ============================================================================
+// THIS FILE IS NAMED .example AND NOT Android.bp ON PURPOSE.
+//
+// It will not build, because the APK it refers to is not in this repository
+// and never will be. Read gearhead-slot/README.md before doing anything with
+// it. The short version: the placeholder that defeats "Communication error 22"
+// has to be signed with a key that lets Google's own Android Auto install on
+// top of it, and there is exactly one such key. Supplying that file is a
+// decision for whoever ships the ROM, not for us.
+// ============================================================================
+
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+prebuilt_etc {
+    name: "privapp_whitelist_com.google.android.projection.gearhead",
+    src: "privapp_whitelist_com.google.android.projection.gearhead.xml",
+    sub_dir: "permissions",
+
+    // Must match the partition of the app module below. /product/etc/permissions
+    // does not authorise an app in /system_ext/priv-app.
+    product_specific: true,
+}
+
+prebuilt_etc {
+    name: "default_permissions_com.google.android.projection.gearhead",
+    src: "default-permissions-com.google.android.projection.gearhead.xml",
+    sub_dir: "default-permissions",
+    product_specific: true,
+}
+
+android_app_import {
+    name: "AndroidAutoPlaceholder",
+
+    // NOT PRESENT. Whoever ships this decides what it is. See README.md.
+    apk: "AndroidAutoPlaceholder.apk",
+
+    // priv-app, so that the store-installed update inherits SCAN_AS_PRIVILEGED
+    // (ScanPackageUtils.scanPackageOnlyLI). This is the whole mechanism.
+    privileged: true,
+
+    // presigned, NOT certificate: "platform".
+    //
+    // This one line is the entire design constraint. A placeholder signed with
+    // the ROM's platform key permanently occupies the package name: the real,
+    // Google-signed Android Auto then fails to install with
+    // INSTALL_FAILED_UPDATE_INCOMPATIBLE, because
+    // PackageManagerServiceUtils.verifySignatures has no system-app exception.
+    // The placeholder must already carry the signature the real app carries.
+    presigned: true,
+    preprocessed: true,
+
+    required: [
+        "privapp_whitelist_com.google.android.projection.gearhead",
+        "default_permissions_com.google.android.projection.gearhead",
+    ],
+
+    // Android Auto's activity embedding wants these at runtime. They are
+    // optional_uses_libs because the app declares them <uses-library
+    // required="false"> and dexpreopt otherwise fails the build.
+    optional_uses_libs: [
+        "androidx.window.extensions",
+        "androidx.window.sidecar",
+    ],
+
+    product_specific: true,
+}

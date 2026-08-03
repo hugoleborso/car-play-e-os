@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright 2026 The openaap authors.
+  Licensed under the Apache License, Version 2.0.
+
+  Presence stub for com.google.android.tts ("Speech Recognition & Synthesis",
+  formerly "Speech Services by Google"). Android Auto refuses to start without
+  a package by this name installed. This package satisfies that check and
+  nothing else: it holds no permissions, declares no components, and contains
+  no code.
+
+  Deliberately absent, and why. This is the stub where getting it wrong does
+  visible damage:
+
+    * No <service> with an android.intent.action.TTS_SERVICE intent filter.
+      TextToSpeech engines are discovered by exactly that filter. A stub that
+      declared one would be listed in Settings as an available engine, could be
+      selected (or auto-selected as the only "Google" engine by an app that
+      asks for it by package name), and would then fail to speak. That breaks
+      TalkBack, navigation prompts and message read-out across the whole
+      device, not just in the car.
+
+    * No <service> with android.speech.RecognitionService. Same argument for
+      speech-to-text. /e/OS ships its own offline voice-to-text; do not
+      shadow it.
+
+  The correct behaviour of this stub is that the system never notices it. The
+  package exists, the TTS subsystem does not see an engine in it, and the
+  device's real engine (eSpeak, or the /e/OS offline engine) keeps the job.
+  Community reports describe exactly this outcome: TTS "just says the service
+  isn't available" inside Android Auto, while the phone itself still speaks.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.google.android.tts"
+    android:versionCode="1"
+    android:versionName="0.1.0-openaap-stub">
+
+    <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="35" />
+
+    <application
+        android:label="Speech services (Android Auto compatibility stub)"
+        android:hasCode="false"
+        android:allowBackup="false"
+        android:forceQueryable="true" />
+
+</manifest>

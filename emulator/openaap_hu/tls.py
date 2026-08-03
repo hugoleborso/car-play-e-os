@@ -64,6 +64,11 @@ class HandshakeOutcome:
     peer_certificate_presented: bool = False
     rounds: int = 0
     log: list[str] = field(default_factory=list)
+    # The alert records the stack emitted while failing. Held here rather than
+    # dropped so the session can relay them: a phone whose TLS engine receives
+    # `bad certificate` can report why it was refused, whereas one that sees the
+    # connection vanish has nothing to log and nothing to show the driver.
+    alert: bytes = b""
 
     def summary(self) -> str:
         if self.completed:
@@ -194,7 +199,7 @@ class HeadUnitTls:
             self.outcome.error = str(error)
             self.outcome.log.append(f"handshake error: {error}")
             log.warning("TLS handshake failed: %s", error)
-            self._drain_outgoing()
+            self.outcome.alert = self._drain_outgoing()
             raise
 
         self.outcome.completed = True

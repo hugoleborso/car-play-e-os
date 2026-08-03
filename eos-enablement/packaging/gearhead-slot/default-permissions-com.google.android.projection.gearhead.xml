@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright 2026 The openaap authors.
+  Licensed under the Apache License, Version 2.0.
+
+  Optional. Pre-grants the runtime permissions Android Auto asks for, so that
+  first connection in a moving car is not eight consecutive dialogs.
+
+  All entries are fixed="false", which means the user can revoke every one of
+  them afterwards in Settings. A fixed="true" grant cannot be revoked, and
+  nothing here justifies that.
+
+  THE CERTIFICATE DIGEST IS DELIBERATELY LEFT BLANK.
+
+  <exception> matches on package name AND on the SHA-256 digest of the signing
+  certificate, so that a default grant cannot be captured by a same-named
+  package signed by somebody else. Filling it in means stating the fingerprint
+  of a specific Google-signed build of Android Auto -- and which build that is,
+  is precisely the decision this repository refuses to make on anyone's behalf
+  (see README.md, and docs/07-provenance.md for the general rule).
+
+  Whoever ships the placeholder APK already has the file. Read the digest off
+  the one they chose:
+
+      apksigner verify --print-certs AndroidAutoPlaceholder.apk
+
+  and paste the SHA-256 line, colon-separated and upper case, below. A wrong
+  or absent digest is not dangerous: the exception simply never matches and
+  the user is prompted normally, which is the pre-2020 behaviour and is fine.
+
+  If in doubt, ship without this file at all. It is a convenience, not a
+  requirement, and it is the one file here that encodes a trust decision.
+-->
+<exceptions>
+    <exception
+            package="com.google.android.projection.gearhead"
+            sha256-cert-digest="FILL_IN_FROM_THE_APK_YOU_SHIP">
+
+        <!-- Turn-by-turn on the head unit, and the car's own position feed. -->
+        <permission name="android.permission.ACCESS_FINE_LOCATION" fixed="false"/>
+        <permission name="android.permission.ACCESS_COARSE_LOCATION" fixed="false"/>
+
+        <!-- Dialling and caller ID on the car screen. -->
+        <permission name="android.permission.CALL_PHONE" fixed="false"/>
+        <permission name="android.permission.READ_PHONE_STATE" fixed="false"/>
+        <permission name="android.permission.READ_CONTACTS" fixed="false"/>
+        <permission name="android.permission.READ_CALL_LOG" fixed="false"/>
+        <permission name="android.permission.WRITE_CALL_LOG" fixed="false"/>
+
+        <!-- Message notification read-out and reply. Note that without the
+             Google app there is no assistant to dictate a reply to, so the
+             SMS grants buy less on a de-Googled phone than on a stock one.
+             They are the first candidates to drop. -->
+        <permission name="android.permission.RECEIVE_SMS" fixed="false"/>
+        <permission name="android.permission.READ_SMS" fixed="false"/>
+        <permission name="android.permission.SEND_SMS" fixed="false"/>
+
+        <!-- Microphone. Also of reduced use with no assistant; keep it only if
+             the head unit's voice button is expected to do anything. -->
+        <permission name="android.permission.RECORD_AUDIO" fixed="false"/>
+
+    </exception>
+</exceptions>
