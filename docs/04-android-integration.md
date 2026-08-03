@@ -16,7 +16,7 @@ source that enforces it.
 | Render our own UI to an off-screen display | `DisplayManager.createVirtualDisplay` with `PUBLIC \| OWN_CONTENT_ONLY \| PRESENTATION` | none | yes |
 | H.264 encode that display | `MediaCodec` + `createInputSurface()` | none | yes |
 | Receive the head unit's USB connection | `USB_ACCESSORY_ATTACHED` intent filter | user grant at attach | yes |
-| Stay alive for a whole drive | foreground service, type `connectedDevice` | `normal` permission | yes |
+| Stay alive for a whole drive | foreground service, type `specialUse` | `normal` permission | yes |
 | Host *third-party* activities on the display | `VIRTUAL_DISPLAY_FLAG_TRUSTED` | `ADD_TRUSTED_DISPLAY`, `signature\|role` | no |
 | Mirror the phone's real screen | `VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR` | `CAPTURE_VIDEO_OUTPUT` (`signature`) or a MediaProjection token | consent dialog per session |
 | Force USB into NCM / enable tethering | `UsbManager.setCurrentFunctions`, tethering APIs | `MANAGE_USB`, `TETHER_PRIVILEGED`, both `signature\|privileged` | no, needs priv-app |
@@ -145,10 +145,18 @@ Since `PUBLIC | OWN_CONTENT_ONLY | PRESENTATION` needs no token at all, we avoid
   `phoneCall` or `microphone` foreground service. Start on the USB attach
   broadcast instead, which is a user-visible hardware event and the natural
   trigger anyway.
-- **Use foreground service type `connectedDevice`.** `dataSync` is capped at 6
-  hours per 24 and calls `onTimeout()`, after which failing to stop promptly
-  throws. `connectedDevice` has no time limit and describes what we are actually
-  doing.
+- **Use foreground service type `specialUse`.** `connectedDevice` describes what
+  this is, but from API 34 each type is gated behind a permission set, and the
+  set for `connectedDevice` is Bluetooth, Wi-Fi, NFC, infrared and UWB. There is
+  no USB entry, because accessory access is granted per device at runtime rather
+  than declared in a manifest — so a cable-only projection service cannot satisfy
+  it, and starting it anyway throws `SecurityException` the moment the user plugs
+  into the car. `dataSync` passes the permission check but is capped at 6 hours
+  per 24 and calls `onTimeout()`, after which failing to stop promptly throws,
+  which ends a long drive badly. `specialUse` exists for exactly the cases the
+  enumerated types do not cover. When the wireless transport lands the app will
+  hold `CHANGE_WIFI_STATE` to join the head unit's access point, and
+  `connectedDevice` becomes both accurate and available.
 - Apps targeting API 35 must be the top app or run a foreground service to
   request audio focus — satisfied by the projection service.
 - Keep the pipeline inside the foreground service rather than in `JobScheduler`;

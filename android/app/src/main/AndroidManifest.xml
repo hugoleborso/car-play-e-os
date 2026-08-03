@@ -9,7 +9,7 @@
       MediaCodec is unprivileged. See docs/04-android-integration.md.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Optional: without it the car's microphone button simply does nothing. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -48,15 +48,36 @@
         </activity>
 
         <!--
-          connectedDevice, not dataSync. dataSync is capped at six hours per
-          twenty-four and calls onTimeout(), after which failing to stop
-          promptly throws. connectedDevice has no time limit and is an accurate
-          description of what this service does.
+          specialUse, and the reasoning is worth recording because the obvious
+          choice does not work.
+
+          connectedDevice describes exactly what this is. But from API 34 the
+          platform gates each service type behind a permission set, and the set
+          for connectedDevice is Bluetooth, Wi-Fi, NFC, infrared and UWB. There
+          is no USB entry, because access to a USB accessory is granted per
+          device at runtime rather than declared in a manifest. A projection
+          service that talks over a cable and nothing else therefore cannot
+          satisfy connectedDevice, and starting it anyway throws SecurityException
+          at the moment the user plugs into the car.
+
+          dataSync would pass the permission check and is the wrong answer for a
+          different reason: it is capped at six hours per twenty-four and calls
+          onTimeout(), after which failing to stop promptly throws. That ends a
+          long drive badly.
+
+          specialUse exists for cases the enumerated types do not cover, which
+          this is. When the wireless transport lands the app will hold
+          CHANGE_WIFI_STATE to join the head unit's access point, and at that
+          point connectedDevice becomes both accurate and available.
         -->
         <service
             android:name=".ProjectionService"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Projects the phone's display and audio to a car head unit over a USB accessory connection, for as long as the cable is connected." />
+        </service>
 
     </application>
 

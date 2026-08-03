@@ -65,7 +65,9 @@ public class ProjectionService : Service() {
         startForeground(
             NOTIFICATION_ID,
             buildNotification(getString(R.string.projection_connecting)),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+            // Must match the manifest. See the comment there for why this is
+            // not connectedDevice, which is what it looks like it should be.
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
         )
 
         if (worker?.isAlive == true) {
