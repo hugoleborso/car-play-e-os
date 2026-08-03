@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright 2026 The openaap authors.
+  Licensed under the Apache License, Version 2.0.
+
+  Presence stub for com.google.android.googlequicksearchbox ("the Google app",
+  internally Velvet). Android Auto refuses to start without a package by this
+  name installed. This package satisfies that check and nothing else: it holds
+  no permissions, declares no components, and contains no code.
+
+  Deliberately absent, and why:
+
+    * No <activity>, <service>, <provider> or <receiver>. The real Google app
+      owns the assistant, the voice-search UI, the "Ok Google" hotword and a
+      handful of implicit intents. A stub that declared any of those would be
+      selected by the system as the handler for them and would then do nothing,
+      which is worse than not being installed at all. On /e/OS the assistant
+      slot is either empty or held by something the user chose; leave it alone.
+
+    * No <uses-permission>. If this package ever needs a permission, something
+      has gone wrong with the design.
+
+    * No android:sharedUserId, no android:process. Nothing to share and nothing
+      to run.
+
+  android:forceQueryable is honoured by the framework only for packages
+  installed on a system partition (see stubs/README.md). It is harmless when
+  it is ignored, and load-bearing when this is built into a ROM.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.google.android.googlequicksearchbox"
+    android:versionCode="1"
+    android:versionName="0.1.0-openaap-stub">
+
+    <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="35" />
+
+    <application
+        android:label="Google app (Android Auto compatibility stub)"
+        android:hasCode="false"
+        android:allowBackup="false"
+        android:forceQueryable="true" />
+
+</manifest>

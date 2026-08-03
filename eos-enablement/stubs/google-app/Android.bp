@@ -1,0 +1,38 @@
+// Copyright 2026 The openaap authors.
+// Licensed under the Apache License, Version 2.0.
+//
+// Soong module for the Google app (Velvet) presence stub. See ../README.md for the
+// partition and signing rationale, and packaging/README.md for how this is
+// wired into a product.
+
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+android_app {
+    name: "AndroidAutoDepStubGoogleApp",
+
+    manifest: "src/main/AndroidManifest.xml",
+
+    // There is no code and there are no resources. Both are stated explicitly
+    // rather than left to Soong's defaults, because "this module is empty on
+    // purpose" is the single most important fact about it.
+    srcs: [],
+    resource_dirs: [],
+    optimize: {
+        enabled: false,
+    },
+
+    sdk_version: "current",
+
+    // /product, not /system. Two reasons. It keeps a Google-compatibility
+    // shim out of the platform image, which is where it belongs politically as
+    // well as technically; and on a Treble device /product is the partition an
+    // OS vendor owns, so /e/OS can add or drop this without touching AOSP.
+    product_specific: true,
+
+    // Not privileged. This package holds no permissions at all, so there is
+    // no privapp allowlist for it and nothing to keep on the same partition.
+    // Contrast with the gearhead slot -- see packaging/gearhead-slot/.
+    privileged: false,
+}

@@ -61,8 +61,6 @@ from .generated import control_pb2, descriptors_pb2, input_pb2, media_pb2, senso
 from .pki import Credential
 from .profile import (
     DIAL_SCROLL,
-    FPS_BY_CADENCE,
-    PIXELS_BY_GEOMETRY,
     ChannelIdAllocator,
     ChannelMap,
     ChannelSpec,
@@ -214,18 +212,19 @@ _TLS_HANDSHAKE_TYPES = {
 }
 
 
-def describe_tls_records(blob: bytes, opaque_after_ccs: bool = True) -> tuple[str, bool]:
+def describe_tls_records(blob: bytes, already_encrypted: bool = False) -> tuple[str, bool]:
     """Name the TLS records in a handshake message body.
 
     A handshake that fails on real hardware fails somewhere specific -- at the
     certificate request, at the certificate, at the key exchange -- and a trace
     that says "0x0003, 1417 bytes" cannot tell you which. Returns the rendering
-    and whether a ChangeCipherSpec was seen, because every handshake record
-    after that one is ciphertext and its type byte is no longer a type byte.
+    and whether this direction is now encrypted: after a ChangeCipherSpec the
+    handshake body is ciphertext and its first byte is no longer a type byte,
+    so naming it would be inventing a message that is not there.
     """
     parts: list[str] = []
     offset = 0
-    encrypted = False
+    encrypted = already_encrypted
     while offset + 5 <= len(blob):
         content_type = blob[offset]
         length = int.from_bytes(blob[offset + 3 : offset + 5], "big")
@@ -233,7 +232,7 @@ def describe_tls_records(blob: bytes, opaque_after_ccs: bool = True) -> tuple[st
         if content_type == 20:
             encrypted = True
         elif content_type == 22 and offset + 5 < len(blob):
-            if encrypted and opaque_after_ccs:
+            if encrypted:
                 label = "Handshake(encrypted)"
             else:
                 handshake_type = blob[offset + 5]
@@ -376,6 +375,7 @@ class HeadUnitSession:
 
         self._auth_complete_sent = False
         self._pending_release: list[tuple[int, int]] = []
+        self._pending_focus: list[int] = []
         self._ping_stamp: Optional[int] = None
         self._ping_sent_at: Optional[float] = None
         self._last_ping_at: Optional[float] = None
@@ -418,7 +418,9 @@ class HeadUnitSession:
         Media credit is released here rather than when an acknowledgement is
         built, because this call is the moment the acknowledgement could
         actually have reached the phone. Releasing earlier would let a phone
-        that sends its whole window in one write look compliant.
+        that sends its whole window in one write look compliant. Video focus is
+        recorded as granted for the same reason: the phone may not act on an
+        indication it cannot yet have read.
         """
         data = b"".join(self._outbox)
         self._outbox.clear()
@@ -428,11 +430,23 @@ class HeadUnitSession:
                 if state is not None:
                     state.outstanding = max(0, state.outstanding - count)
             self._pending_release.clear()
+            for channel_id in self._pending_focus:
+                self._states[channel_id].focus_granted = True
+            self._pending_focus.clear()
         return data
 
     @property
     def pending_outbound(self) -> int:
         return sum(len(chunk) for chunk in self._outbox)
+
+    @property
+    def handshake_outcome(self):
+        """What the head unit made of the phone's certificate.
+
+        The one observation this whole emulator exists to produce: which trust
+        policy a phone can get past, and what it was told when it could not.
+        """
+        return self._tls.outcome
 
     def tick(self, now: Optional[float] = None) -> None:
         """Timer work: periodic ping, and the timeout on an unanswered one."""
@@ -838,13 +852,13 @@ class HeadUnitSession:
         try:
             outbound = self._tls.handshake(body)
         except ssl.SSLError as error:
-            # Relay the alert first: a phone that learns why it was rejected can
-            # be debugged, one that sees a bare disconnect cannot.
-            pending = self._tls.outcome
-            self._send_handshake(b"")
+            # Relay the alert first. A phone that receives `bad certificate` can
+            # say so; one that sees a bare disconnect -- which is what every
+            # existing head unit gives it -- has nothing to report.
+            self._send_handshake(self._tls.outcome.alert)
             raise self._violate(
                 "tls-handshake-failed",
-                f"{error}; phone presented a certificate: {pending.peer_certificate_presented}",
+                f"{error} (trust policy: {self._tls.trust_policy})",
             ) from error
 
         self._send_handshake(outbound)
@@ -1170,7 +1184,11 @@ class HeadUnitSession:
             unprompted=unprompted,
         )
         self._emit(state.channel_id, wire.SCREEN_FOCUS_NOTICE, notice.SerializeToString())
-        state.focus_granted = projected
+        if projected:
+            # Granted only once the bytes leave: see drain_outbound.
+            self._pending_focus.append(state.channel_id)
+        else:
+            state.focus_granted = False
 
     # ------------------------------------------------------------ discovery
 
@@ -1189,9 +1207,7 @@ class HeadUnitSession:
             link=control_pb2.LINK_WIRELESS if self.profile.link_wireless else control_pb2.LINK_WIRED,
         )
         for spec in self.profile.channels:
-            announcement.channel.append(
-                _channel_entry(spec, self.channel_ids[spec.kind], self.max_unacked)
-            )
+            announcement.channel.append(_channel_entry(spec, self.channel_ids[spec.kind]))
         return announcement
 
     # ---------------------------------------------------------------- plumbing
@@ -1339,12 +1355,11 @@ class HeadUnitSession:
                 return f"{response.major}.{response.minor}, {verdict}"
             if message_id == wire.CONTROL_TLS_HANDSHAKE:
                 seen = self._outbound_ccs_seen if outbound else self._inbound_ccs_seen
-                rendering, ccs = describe_tls_records(body, opaque_after_ccs=seen)
-                if ccs or seen:
-                    if outbound:
-                        self._outbound_ccs_seen = True
-                    else:
-                        self._inbound_ccs_seen = True
+                rendering, encrypted = describe_tls_records(body, already_encrypted=seen)
+                if outbound:
+                    self._outbound_ccs_seen = encrypted
+                else:
+                    self._inbound_ccs_seen = encrypted
                 return rendering
             return self._describe_control_protobuf(message_id, body)
 
@@ -1473,10 +1488,13 @@ def _entry_kind(entry: descriptors_pb2.ChannelEntry) -> str:
     return "empty"
 
 
-def _channel_entry(
-    spec: ChannelSpec, channel_id: int, max_unacked: int
-) -> descriptors_pb2.ChannelEntry:
-    """Build one discovery entry: an id plus exactly one sub-descriptor."""
+def _channel_entry(spec: ChannelSpec, channel_id: int) -> descriptors_pb2.ChannelEntry:
+    """Build one discovery entry: an id plus exactly one sub-descriptor.
+
+    ``buffered_messages`` on a sink is advisory -- how much the sink can hold --
+    and is not the credit window. The binding number is ``max_unacked`` in the
+    setup reply, which is negotiated per stream rather than announced here.
+    """
     entry = descriptors_pb2.ChannelEntry(channel_id=channel_id)
     kind = spec.kind
 
@@ -1544,11 +1562,4 @@ def _channel_entry(
     else:  # pragma: no cover - ServiceKind.CONTROL is never advertised
         raise SessionError(f"no descriptor shape for {kind.value}")
 
-    _ = max_unacked  # advisory buffering lives on the sink; the window is in setup
     return entry
-
-
-def describe_picture_format(fmt: media_pb2.PictureFormat) -> str:
-    """Human-readable geometry, for the trace and the CLI banner."""
-    width, height = PIXELS_BY_GEOMETRY.get(fmt.geometry, (0, 0))
-    return f"{width}x{height}@{FPS_BY_CADENCE.get(fmt.cadence, 0)}"

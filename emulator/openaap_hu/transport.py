@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import selectors
 import socket
+import ssl
 import time
 from typing import Callable, Optional, Protocol
 
@@ -177,7 +178,10 @@ def run_session(
             link.write(session.drain_outbound())
         except (SessionError, OSError):
             pass
-    except OSError as error:
+    except (OSError, ssl.SSLError, SessionError) as error:
+        # A socket that died, a TLS record layer that desynchronised, or the
+        # emulator asked to do something impossible. None is the phone's fault,
+        # so none becomes a violation -- but all three end the session.
         outcome.error = error
     finally:
         link.close()

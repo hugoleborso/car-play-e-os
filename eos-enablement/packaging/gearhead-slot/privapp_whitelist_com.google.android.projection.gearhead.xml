@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright 2026 The openaap authors.
+  Licensed under the Apache License, Version 2.0.
+
+  Privileged-permission allowlist for com.google.android.projection.gearhead.
+
+  This file only has an effect for a package installed in a priv-app directory.
+  It is here because of AOSP's inheritance rule: a user-installed update to a
+  system package is rescanned with SCAN_AS_SYSTEM, and with SCAN_AS_PRIVILEGED
+  if the underlying system package had PRIVATE_FLAG_PRIVILEGED
+  (ScanPackageUtils.scanPackageOnlyLI, android15-release). So the real Android
+  Auto, installed from a store on top of a privileged preinstalled placeholder,
+  is itself privileged, and these entries then apply to it.
+
+  Ship this on the SAME PARTITION as the placeholder app. An allowlist under
+  /product/etc/permissions does not authorise an app in /system_ext/priv-app.
+  Boot fails hard on a mismatch when PRODUCT_PRIVAPP_PERMISSIONS_ENFORCEMENT is
+  on, which it is by default from Android 9 onwards.
+
+  ON THE CONTENTS. This list is a starting point, not a measurement. It is the
+  set /e/OS ships today in e/os/android_prebuilts_prebuiltapks_lfs, which is a
+  trimmed version of the older list in dylangerdaly/android-auto-stub. Neither
+  was derived by watching what Android Auto actually asks for.
+
+  An allowlist is a grant. Deriving the real set costs one boot:
+
+      adb logcat -d | grep "Not granting permission"
+
+  produces one line per privileged permission the package declared and did not
+  receive. Everything not on that list should come out of this file. Do that
+  before proposing this anywhere; a reviewer at LineageOS or e Foundation is
+  entitled to ask why a package needs MODIFY_PHONE_STATE and "the previous
+  file had it" is not an answer.
+
+  Grouped below by what the permission is plausibly for, so that trimming is a
+  decision rather than a guess.
+-->
+<permissions>
+    <privapp-permissions package="com.google.android.projection.gearhead">
+
+        <!-- Phone and calls: dialling from the car screen, the in-call UI on
+             the head unit, caller ID from a privileged phone-state read. -->
+        <permission name="android.permission.CALL_PRIVILEGED"/>
+        <permission name="android.permission.CONTROL_INCALL_EXPERIENCE"/>
+        <permission name="android.permission.MODIFY_PHONE_STATE"/>
+        <permission name="android.permission.READ_PRIVILEGED_PHONE_STATE"/>
+
+        <!-- Bluetooth and companion-device pairing. Android Auto keeps a
+             Bluetooth link alongside the USB or Wi-Fi session; wireless
+             projection additionally joins the head unit's access point. -->
+        <permission name="android.permission.BLUETOOTH_PRIVILEGED"/>
+        <permission name="android.permission.COMPANION_APPROVE_WIFI_CONNECTIONS"/>
+        <permission name="android.permission.REQUEST_COMPANION_SELF_MANAGED"/>
+        <permission name="android.permission.LOCAL_MAC_ADDRESS"/>
+
+        <!-- USB. Switching the phone into accessory mode for a wired session.
+             MANAGE_USB is signature|privileged, so the allowlist does reach
+             it -- see docs/04-android-integration.md for why that distinction
+             matters and where it stops. -->
+        <permission name="android.permission.MANAGE_USB"/>
+
+        <!-- Audio routing to and from the car: media out, microphone in,
+             ducking around navigation prompts. -->
+        <permission name="android.permission.MODIFY_AUDIO_ROUTING"/>
+
+        <!-- Car mode and the day/night switch driven by the head unit. -->
+        <permission name="android.permission.ENTER_CAR_MODE_PRIORITIZED"/>
+        <permission name="android.permission.MODIFY_DAY_NIGHT_MODE"/>
+
+        <!-- Projection surface management: hosting other apps' activities on
+             the car display, and starting them without a foreground task. -->
+        <permission name="android.permission.ACTIVITY_EMBEDDING"/>
+        <permission name="android.permission.START_ACTIVITIES_FROM_BACKGROUND"/>
+        <permission name="android.permission.CHANGE_COMPONENT_ENABLED_STATE"/>
+
+        <!-- Location hardware for the head unit's GPS feed. -->
+        <permission name="android.permission.LOCATION_HARDWARE"/>
+
+        <!-- Housekeeping. SCHEDULE_EXACT_ALARM is a runtime-visible special
+             app access on API 33+; granting it here avoids a prompt the user
+             would see with no context. DUMP and UPDATE_APP_OPS_STATS are
+             diagnostics and are the first two entries to try removing. -->
+        <permission name="android.permission.SCHEDULE_EXACT_ALARM"/>
+        <permission name="android.permission.DUMP"/>
+        <permission name="android.permission.UPDATE_APP_OPS_STATS"/>
+
+    </privapp-permissions>
+</permissions>

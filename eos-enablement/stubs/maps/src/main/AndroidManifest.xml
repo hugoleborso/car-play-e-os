@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright 2026 The openaap authors.
+  Licensed under the Apache License, Version 2.0.
+
+  Presence stub for com.google.android.apps.maps (Google Maps). Android Auto
+  refuses to start without a package by this name installed. This package
+  satisfies that check and nothing else: it holds no permissions, declares no
+  components, and contains no code.
+
+  Deliberately absent, and why:
+
+    * No <intent-filter> for geo:, google.navigation:, http(s)://maps.google.*
+      or android.intent.action.VIEW on map URIs. Declaring them would put this
+      package in the disambiguation dialog for every map link on the device,
+      and a user who picks it, or who has previously set "always", gets
+      nothing. /e/OS ships Magic Earth (and, from 2026, Murena Maps); those
+      should keep handling map intents.
+
+    * No car-app or media service. Android Auto discovers navigation providers
+      through CarAppService / androidx.car.app metadata. A stub that advertised
+      one would appear on the car screen as a dead tile.
+
+  Consequence, stated plainly: with this stub installed there is no Google Maps
+  on the phone and therefore no Google Maps on the car screen. Navigation on
+  the head unit has to come from another Android-Auto-capable app. See
+  docs/09-android-auto-on-eos.md for which ones actually appear and why most
+  do not.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.google.android.apps.maps"
+    android:versionCode="1"
+    android:versionName="0.1.0-openaap-stub">
+
+    <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="35" />
+
+    <application
+        android:label="Maps (Android Auto compatibility stub)"
+        android:hasCode="false"
+        android:allowBackup="false"
+        android:forceQueryable="true" />
+
+</manifest>

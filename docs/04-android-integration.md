@@ -1,8 +1,8 @@
 # Android integration: what a plain APK can do, and where the ROM starts
 
-Target device: Fairphone 6 running /e/OS 3.x, which sits on a LineageOS 22.2
-base, which is Android 15 (API 35). Plan against API 35 with API 36 on the
-horizon.
+Target device: Fairphone 6 running /e/OS, which by mid-2026 is at 4.x and
+**Android 16**. The app compiles against API 35 and runs on 36; the behaviour
+changes that bite are the API 34 and 35 ones below, which Android 16 inherits.
 
 This document records which parts of the phone side are reachable from an
 ordinary installable APK and which require being built into the ROM. It is the
@@ -138,7 +138,7 @@ its terms are wrong for a car:
 Since `PUBLIC | OWN_CONTENT_ONLY | PRESENTATION` needs no token at all, we avoid
 `MediaProjection` entirely and inherit none of this.
 
-## Lifecycle constraints on Android 15
+## Lifecycle constraints from Android 14 onwards
 
 - **Do not auto-start at boot.** Android 15 forbids a `BOOT_COMPLETED` receiver
   from starting a `mediaProjection`, `dataSync`, `camera`, `mediaPlayback`,

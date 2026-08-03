@@ -17,13 +17,16 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
+from typing import Callable, Optional, TextIO
 
-sys.path.insert(0, __file__.rsplit("/", 1)[0])
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from openaap_hu import pki  # noqa: E402
 from openaap_hu.profile import PROFILES, ChannelIdAllocator  # noqa: E402
 from openaap_hu.session import (  # noqa: E402
+    DEFAULT_PROTOCOL_VERSION,
     HeadUnitSession,
     TraceEvent,
     format_trace_event,
@@ -107,8 +110,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--protocol-version",
         type=_parse_version,
-        default="1.6",
-        help="version offered in the version request, as major.minor (default 1.6)",
+        default=DEFAULT_PROTOCOL_VERSION,
+        help=(
+            "version offered in the version request, as major.minor (default "
+            f"{DEFAULT_PROTOCOL_VERSION[0]}.{DEFAULT_PROTOCOL_VERSION[1]}); "
+            "implementations advertise 1.1 through 1.6"
+        ),
     )
     parser.add_argument(
         "--log-level",
@@ -149,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def make_tracer(stream=None) -> "callable":
+def make_tracer(stream: Optional[TextIO] = None) -> Callable[[TraceEvent], None]:
     """Return a trace sink that prints aligned, optionally coloured, lines."""
     handle = stream if stream is not None else sys.stdout
     coloured = hasattr(handle, "isatty") and handle.isatty()
@@ -183,9 +190,6 @@ def _banner(session: HeadUnitSession, arguments: argparse.Namespace) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
-    if isinstance(arguments.protocol_version, str):
-        arguments.protocol_version = _parse_version(arguments.protocol_version)
-
     logging.basicConfig(
         level=getattr(logging, arguments.log_level.upper()),
         format="%(levelname)-7s %(name)s: %(message)s",
@@ -249,6 +253,9 @@ def _report(session: HeadUnitSession, outcome) -> None:
     print(outcome.summary(), file=sys.stderr)
     print(f"  messages traced   {len(session.trace_log)}", file=sys.stderr)
     print(f"  final phase       {session.phase.value}", file=sys.stderr)
+    # The line the project actually cares about: which trust policy the phone
+    # got past, and what it was told when it did not.
+    print(f"  tls               {session.handshake_outcome.summary()}", file=sys.stderr)
     if session.round_trip_samples:
         average = sum(session.round_trip_samples) / len(session.round_trip_samples)
         print(

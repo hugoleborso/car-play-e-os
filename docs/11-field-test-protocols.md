@@ -205,26 +205,22 @@ first if you have the SDK.
 
 ---
 
-## Not yet available
+## P5 — bench test against our own head-unit emulator
 
-Two more protocols are planned and their pieces are still being written. Listed
-here so the numbering does not shift later, and so it is clear what is not
-being claimed.
+**Why.** A full end-to-end test with no car and no Google software. Its point is
+that the emulated head unit's trust policy is a switch: run it lenient and the
+handshake should succeed, run it strict and it should fail with a chain error.
+That is how we check the probe reports what we think it reports, before anyone
+drives anywhere.
 
-**P5 — bench test against our own head-unit emulator.** The emulator's framing
-and TLS layers exist and are tested; its session driver is in progress. When it
-lands, this becomes a full end-to-end test with no car and no Google software,
-including a switch to make the emulated head unit strict or lenient about
-certificates — which is how we check that the probe reports what we think it
-reports.
+See [the emulator](08-emulator.md) for the options, including the traps a real
+car sets — scrambled channel ids, so a phone that hardcoded the conventional
+ones fails on the bench rather than in a car park, and a deferred verdict.
 
-**P6 — Android Auto on /e/OS using Google's app.** The pragmatic path: /e/OS 3.3
-and later fixed the Android 15 regression, three stub packages satisfy the
-presence checks for the Google app, Maps and text-to-speech, and the remaining
-blocker is that Android Auto checks it was preinstalled. The packaging work for
-this is in progress. When it lands it also serves as a stronger version of P0:
-if Google's app projects onto the car, the car is definitely capable and any
-failure of ours is ours.
+**P6 — Android Auto on /e/OS using Google's app** is written up in full at
+[Android Auto on /e/OS](09-android-auto-on-eos.md). It is the pragmatic path and
+it also serves as a stronger version of P0: if Google's app projects onto the
+car, the car is definitely capable and any failure of ours is ours.
 
 ---
 

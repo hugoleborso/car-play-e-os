@@ -74,7 +74,9 @@ works on /e/OS right now**, with microG and no Play Services, including on the
 Fairphone 6. It needs three stub packages to satisfy presence checks for the
 Google app, Maps and text-to-speech, and it needs to appear preinstalled — the
 "not preinstalled on this device" check is the real blocker, not any
-attestation. Android 15 broke it and /e/OS 3.3 fixed it in December 2025.
+attestation. Android 15 broke it and /e/OS 3.3 fixed it in December 2025 by shipping the
+preinstall slot itself. The three dependency stubs are still not bundled, which
+is the remaining gap and the one this project fills.
 
 The blockers are packaging, not cryptography. No SafetyNet, no Play Integrity,
 no DroidGuard involvement.

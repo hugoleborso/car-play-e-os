@@ -148,8 +148,12 @@ def message_name(kind: Optional[ServiceKind], message_id: int) -> str:
     if kind in (None, ServiceKind.CONTROL) or message_id < SERVICE_NAMESPACE_FLOOR:
         # Below 0x8000 on a service channel the id still comes from the control
         # namespace -- except the two media ids, which is what the control-flag
-        # rule below is really encoding.
-        if message_id in (MEDIA_WITH_STAMP, MEDIA_BARE) and kind is not None:
+        # rule below is really encoding. The carve-out is for *service* channels
+        # only: on channel 0 the same two numbers are the version exchange.
+        if message_id in (MEDIA_WITH_STAMP, MEDIA_BARE) and kind not in (
+            None,
+            ServiceKind.CONTROL,
+        ):
             return _STREAM_NAMES[message_id]
         return _CONTROL_NAMES.get(message_id, f"control-0x{message_id:04x}")
     if kind is ServiceKind.INPUT:

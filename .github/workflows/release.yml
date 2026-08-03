@@ -2,9 +2,8 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
-  # So a build can be published without cutting a tag, which is what you want
-  # when someone is about to drive to a car park and needs the current APK.
   workflow_dispatch:
 
 permissions:
@@ -16,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -28,65 +29,88 @@ jobs:
         run: ./gradlew :android:app:assembleDebug :android:app:lintDebug --stacktrace
 
       - name: Name the artefact after the build
-        id: name
+        id: build
         run: |
           version=$(grep -oP 'versionName = "\K[^"]+' android/app/build.gradle.kts)
           short=$(git rev-parse --short HEAD)
           name="openaap-${version}-${short}.apk"
           cp android/app/build/outputs/apk/debug/app-debug.apk "$name"
-          echo "apk=$name" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          {
+            echo "apk=$name"
+            echo "version=$version"
+            echo "short=$short"
+          } >> "$GITHUB_OUTPUT"
 
-      # Attached to every run, tag or not, so the current build is always one
-      # click away for anyone with repository access.
       - uses: actions/upload-artifact@v4
         with:
           name: openaap-apk
-          path: ${{ steps.name.outputs.apk }}
+          path: ${{ steps.build.outputs.apk }}
 
-      - name: Publish a release
+      - name: Write the release notes
+        run: |
+          cat > release-notes.md <<'NOTES'
+          ## Install
+
+          Download the `.apk` below and open it on the phone. Android will ask
+          whether to allow installing from wherever you downloaded it; say yes.
+
+          Or from a computer: `adb install -r openaap-*.apk`
+
+          Needs Android 10 or later. No Play Services, no Google account, no
+          root, no custom ROM.
+
+          ## What it does
+
+          It **measures**, it does not project. Plug the phone into a car's data
+          USB port and the app presents a series of generated identities to the
+          car, one per connection, recording how far each one got and what the
+          car said when it stopped. That question — what a production head unit
+          actually checks about a phone's certificate — has no published answer
+          after eleven years of community work.
+
+          The app's screen shows results as they arrive, which matters because
+          the cable is in the car and a computer cannot see the phone while it
+          is happening. Press **Share report** when it is done.
+
+          Full procedure: [field test protocols](https://github.com/OWNER_REPO/blob/main/docs/11-field-test-protocols.md).
+
+          ## About the signature
+
+          Signed with Android's standard debug key. That is deliberate for a
+          sideloaded diagnostic tool: no secret lives in this repository and the
+          build is reproducible from source. It does mean Android will refuse to
+          update it over a differently-signed build, and that it is unsuitable
+          for an app store. Neither matters here.
+
+          ## What it does not do
+
+          Nothing here has run against physical hardware yet, and it does not
+          send video or audio to a car. That pipeline is unfinished.
+          NOTES
+          sed -i "s|OWNER_REPO|${GITHUB_REPOSITORY}|" release-notes.md
+
+      # A rolling release rather than a tagged one, so that /releases/latest is
+      # always the current build and nobody has to cut a tag to make the app
+      # downloadable. Delete and recreate rather than update in place: moving a
+      # tag on an existing release is the part of this that is fiddly, and
+      # recreating is both simpler and idempotent.
+      - name: Publish the rolling release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest \
+            --title "openaap ${{ steps.build.outputs.version }} (${{ steps.build.outputs.short }})" \
+            --notes-file release-notes.md \
+            "${{ steps.build.outputs.apk }}"
+
+      - name: Publish a tagged release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ steps.name.outputs.apk }}
-          name: openaap ${{ github.ref_name }}
-          generate_release_notes: true
-          body: |
-            ## Install
-
-            Download the `.apk` below, then on the phone:
-
-            - open it from the notification or a file manager, and allow
-              installation from that source when asked, **or**
-            - `adb install -r openaap-*.apk` from a computer.
-
-            Requires Android 10 or later. On a de-Googled ROM nothing else is
-            needed; there is no Play Services dependency anywhere in this app.
-
-            ## What it does
-
-            The app starts in probe mode. Plug the phone into a car's data USB
-            port and it presents a series of generated identities to the head
-            unit, one per connection, recording how far each one got and what
-            the head unit said when it stopped. The screen shows this live —
-            which matters, because the cable is in the car and `adb` cannot see
-            the phone while it is happening.
-
-            Full procedure: [field test protocols](https://github.com/${{ github.repository }}/blob/main/docs/11-field-test-protocols.md).
-
-            ## About the signature
-
-            This APK is signed with Android's standard debug key. That is
-            deliberate for a diagnostic tool people sideload: it needs no
-            secret held in this repository, and anyone can reproduce the build
-            byte for byte from the tagged source. It also means Android will
-            refuse to update it over a differently-signed build, and it is not
-            suitable for distribution through an app store. Neither matters
-            here.
-
-            ## What it does not do
-
-            Nothing in this app has run against physical hardware yet. It does
-            not project video or audio to a car — that pipeline is unfinished.
-            It measures what a head unit checks about a phone's certificate,
-            which is an open question nobody has published an answer to.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "openaap ${GITHUB_REF_NAME}" \
+            --notes-file release-notes.md \
+            "${{ steps.build.outputs.apk }}"
