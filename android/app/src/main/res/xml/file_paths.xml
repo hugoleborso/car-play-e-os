@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The probe report lives in the app's own external files directory so that adb
+  can pull it without root. Sharing it needs a content URI rather than a file
+  path, because a file:// URI has not been accepted across app boundaries since
+  Android 7.
+-->
+<paths>
+    <external-files-path name="reports" path="." />
+</paths>

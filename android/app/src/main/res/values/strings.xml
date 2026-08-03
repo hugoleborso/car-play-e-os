@@ -1,10 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">openaap</string>
+    <string name="app_name" translatable="false">openaap</string>
+
     <string name="notification_channel_name">Car projection</string>
-    <string name="notification_channel_description">Shown while the phone is projecting to a car display.</string>
+    <string name="notification_channel_description">Shown while the phone is connected to a car display.</string>
     <string name="projection_active">Connected to car</string>
     <string name="projection_connecting">Connecting to car…</string>
-    <string name="probe_complete">Probe complete — pull the report</string>
+
+    <string name="probe_title">Head unit probe</string>
+    <string name="probe_intro">Finds out what your car checks about the phone\'s certificate. Each connection presents a different identity and records how far it got and why it stopped.</string>
+
+    <string name="probe_status_waiting">Plug the phone into the car</string>
+    <string name="probe_status_running">Probe %1$d of %2$d</string>
+    <string name="probe_status_complete">All identities tried (%1$d)</string>
+    <string name="probe_status_accepted">The car accepted a certificate we generated</string>
+    <string name="probe_status_no_contact">The car has not spoken yet</string>
+    <string name="probe_progress_detail">%1$d of %2$d recorded</string>
+
+    <string name="probe_howto_heading">How to run it</string>
+    <string name="probe_howto_1">Start the engine and let the car screen finish booting.</string>
+    <string name="probe_howto_2">Plug the phone into the car\'s data USB port, with a good cable.</string>
+    <string name="probe_howto_3">Leave it connected for a minute. A car that refuses usually retries by itself, and each retry advances the probe.</string>
+    <string name="probe_howto_4">Unplug and plug back in until every identity has been tried, then share the report.</string>
+
+    <string name="probe_results_heading">Results</string>
+    <string name="probe_head_unit_protocol">Car offered protocol %1$s</string>
+
+    <string name="probe_certificate_heading">What the car presented to us</string>
+    <string name="probe_certificate_note">No public source records this for this model of head unit. Its issuer identifies who actually built the projection software in these cars.</string>
+
+    <string name="probe_verdict_heading">What this means</string>
+    <string name="probe_verdict_accepted">This car does not require a certificate issued by Google. Nobody has published that result before — it is worth reporting.</string>
+    <string name="probe_verdict_rejected">Every identity was refused during the handshake. The alert on each row names the check that failed. This is the expected outcome, and it is the first published measurement of it.</string>
+    <string name="probe_verdict_after_tls">The handshake succeeded and the car refused afterwards. It accepted the certificate as a certificate and rejected the identity, which is a more specific finding than a chain failure.</string>
+    <string name="probe_verdict_no_contact">The car never spoke. That is a cable, port or connection problem rather than a verdict about certificates. Try another cable, and check the car has Android Auto enabled.</string>
+
+    <string name="probe_share">Share report</string>
+    <string name="probe_share_subject">openaap head unit probe report</string>
+    <string name="probe_restart">Start again</string>
+    <string name="probe_file_location">Report saved at %1$s</string>
+
+    <string name="probe_complete">Probe complete — share the report</string>
     <string name="probe_progress">Probe %1$d: %2$s → %3$s</string>
 </resources>

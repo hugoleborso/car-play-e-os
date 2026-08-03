@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_channel_name">Projection voiture</string>
+    <string name="notification_channel_description">Affiché tant que le téléphone est relié à l\'écran de la voiture.</string>
+    <string name="projection_active">Connecté à la voiture</string>
+    <string name="projection_connecting">Connexion à la voiture…</string>
+
+    <string name="probe_title">Sonde autoradio</string>
+    <string name="probe_intro">Détermine ce que votre voiture vérifie du certificat du téléphone. Chaque connexion présente une identité différente et enregistre jusqu\'où elle est allée et pourquoi elle s\'est arrêtée.</string>
+
+    <string name="probe_status_waiting">Branchez le téléphone dans la voiture</string>
+    <string name="probe_status_running">Sonde %1$d sur %2$d</string>
+    <string name="probe_status_complete">Toutes les identités essayées (%1$d)</string>
+    <string name="probe_status_accepted">La voiture a accepté un certificat que nous avons généré</string>
+    <string name="probe_status_no_contact">La voiture n\'a pas encore parlé</string>
+    <string name="probe_progress_detail">%1$d sur %2$d enregistrées</string>
+
+    <string name="probe_howto_heading">Comment procéder</string>
+    <string name="probe_howto_1">Démarrez le moteur et laissez l\'écran de la voiture finir de s\'allumer.</string>
+    <string name="probe_howto_2">Branchez le téléphone sur le port USB de données de la voiture, avec un bon câble.</string>
+    <string name="probe_howto_3">Laissez branché une minute. Une voiture qui refuse réessaie généralement d\'elle-même, et chaque tentative fait avancer la sonde.</string>
+    <string name="probe_howto_4">Débranchez et rebranchez jusqu\'à ce que toutes les identités soient passées, puis partagez le rapport.</string>
+
+    <string name="probe_results_heading">Résultats</string>
+    <string name="probe_head_unit_protocol">La voiture propose le protocole %1$s</string>
+
+    <string name="probe_certificate_heading">Ce que la voiture nous a présenté</string>
+    <string name="probe_certificate_note">Aucune source publique ne documente cela pour ce modèle d\'autoradio. Son émetteur identifie qui a réellement construit le logiciel de projection dans ces voitures.</string>
+
+    <string name="probe_verdict_heading">Ce que ça signifie</string>
+    <string name="probe_verdict_accepted">Cette voiture n\'exige pas de certificat émis par Google. Personne n\'a publié ce résultat auparavant — il mérite d\'être signalé.</string>
+    <string name="probe_verdict_rejected">Toutes les identités ont été refusées pendant la négociation. L\'alerte de chaque ligne nomme le contrôle qui a échoué. C\'est le résultat attendu, et c\'en est la première mesure publiée.</string>
+    <string name="probe_verdict_after_tls">La négociation a réussi et la voiture a refusé ensuite. Elle a accepté le certificat en tant que certificat et rejeté l\'identité, ce qui est plus précis qu\'un échec de chaîne.</string>
+    <string name="probe_verdict_no_contact">La voiture n\'a jamais parlé. C\'est un problème de câble, de port ou de connexion, pas un verdict sur les certificats. Essayez un autre câble et vérifiez qu\'Android Auto est activé sur la voiture.</string>
+
+    <string name="probe_share">Partager le rapport</string>
+    <string name="probe_share_subject">Rapport de sonde autoradio openaap</string>
+    <string name="probe_restart">Recommencer</string>
+    <string name="probe_file_location">Rapport enregistré dans %1$s</string>
+
+    <string name="probe_complete">Sonde terminée — partagez le rapport</string>
+    <string name="probe_progress">Sonde %1$d : %2$s → %3$s</string>
+</resources>
