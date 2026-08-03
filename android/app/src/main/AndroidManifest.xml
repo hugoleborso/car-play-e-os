@@ -22,7 +22,34 @@
         android:supportsRtl="true">
 
         <!--
-          The entry point is the head unit being plugged in, not the launcher.
+          The screen exists because of a constraint that is easy to miss from a
+          desk: the phone has one USB port, and during a test it is plugged into
+          the car. adb cannot see the phone while any of the interesting things
+          are happening, so without a screen the person running the test learns
+          nothing until they get home and pull a file.
+        -->
+        <activity
+            android:name=".ProbeActivity"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.reports"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!--
+          The projection entry point is the head unit being plugged in, not the launcher.
 
           Android 15 forbids a BOOT_COMPLETED receiver from starting most
           foreground service types, so auto-starting at boot is not an option,
