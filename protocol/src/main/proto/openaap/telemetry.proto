@@ -1,0 +1,292 @@
+// Copyright 2026 The openaap authors.
+// Licensed under the Apache License, Version 2.0.
+//
+// Input events from the head unit, and vehicle sensor readings. See the header
+// of control.proto for the provenance rules these definitions follow.
+
+syntax = "proto2";
+
+package openaap;
+
+import "openaap/control.proto";
+
+option java_package = "org.openaap.protocol.proto";
+option java_outer_classname = "TelemetryProto";
+option java_multiple_files = true;
+
+// ---------------------------------------------------------------------------
+// Input
+// ---------------------------------------------------------------------------
+
+enum TouchPhase {
+  TOUCH_DOWN = 0;
+  TOUCH_UP = 1;
+  TOUCH_MOVE = 2;
+}
+
+// Coordinates are absolute, in the surface dimensions the head unit advertised
+// for that input device -- which is generally, but not necessarily, the video
+// resolution. Scale from the advertised surface, not from the video format.
+message TouchPoint {
+  optional uint32 x = 1;
+  optional uint32 y = 2;
+  optional uint32 pointer = 3;
+}
+
+message TouchUpdate {
+  repeated TouchPoint points = 1;
+  optional uint32 changed_index = 2;
+  optional TouchPhase phase = 3;
+}
+
+message KeyUpdate {
+  optional uint32 scan_code = 1;
+  optional bool pressed = 2;
+  optional uint32 modifiers = 3;
+  optional bool held = 4;
+}
+
+message KeyUpdates {
+  repeated KeyUpdate keys = 1;
+}
+
+message AbsoluteAxisUpdate {
+  optional uint32 scan_code = 1;
+  optional int32 position = 2;
+}
+
+message AbsoluteAxisUpdates {
+  repeated AbsoluteAxisUpdate axes = 1;
+}
+
+message RelativeAxisUpdate {
+  optional uint32 scan_code = 1;
+  optional int32 delta = 2;
+}
+
+message RelativeAxisUpdates {
+  repeated RelativeAxisUpdate axes = 1;
+}
+
+message InputEvent {
+  // Monotonic, in nanoseconds. Not wall time.
+  optional uint64 stamp = 1;
+  optional int32 display = 2;
+  optional TouchUpdate touch = 3;
+  optional KeyUpdates keys = 4;
+  optional AbsoluteAxisUpdates absolute_axes = 5;
+  optional RelativeAxisUpdates relative_axes = 6;
+}
+
+// Asks the head unit to route a set of hardware buttons to us. Without this,
+// steering-wheel and dashboard controls stay with the head unit's own UI.
+message KeyBindingRequest {
+  repeated int32 scan_codes = 1;
+}
+
+message KeyBindingResponse {
+  optional ResultCode result = 1;
+}
+
+// Scan codes for the controls a head unit routes to a projected session.
+enum ControlCode {
+  CONTROL_NONE = 0;
+  CONTROL_VOICE_ALT = 1;
+  CONTROL_MENU = 2;
+  CONTROL_HOME = 3;
+  CONTROL_BACK = 4;
+  CONTROL_CALL_START = 5;
+  CONTROL_CALL_END = 6;
+  CONTROL_NAV_UP = 19;
+  CONTROL_NAV_DOWN = 20;
+  CONTROL_NAV_LEFT = 21;
+  CONTROL_NAV_RIGHT = 22;
+  CONTROL_SELECT = 23;
+  CONTROL_VOICE = 84;
+  CONTROL_PLAY_PAUSE = 85;
+  CONTROL_SKIP_FORWARD = 87;
+  CONTROL_SKIP_BACK = 88;
+  CONTROL_PLAY = 126;
+  CONTROL_PAUSE = 127;
+  CONTROL_ROTARY = 65536;
+}
+
+// ---------------------------------------------------------------------------
+// Sensors
+// ---------------------------------------------------------------------------
+
+message SensorSubscribeRequest {
+  optional SensorKind kind = 1;
+  optional int64 interval_ms = 2;
+}
+
+message SensorSubscribeResponse {
+  optional ResultCode result = 1;
+}
+
+// Readings pushed by the head unit.
+//
+// Every field number here equals the SensorKind value it carries, which is why
+// the numbering has gaps and why field 18 is reserved but never populated in
+// practice. Keep the two in step when adding anything.
+message SensorReadings {
+  repeated Location location = 1;
+  repeated Heading heading = 2;
+  repeated RoadSpeed road_speed = 3;
+  repeated EngineSpeed engine_speed = 4;
+  repeated Odometer odometer = 5;
+  repeated FuelState fuel = 6;
+  repeated ParkingBrake parking_brake = 7;
+  repeated GearState gear = 8;
+  repeated Diagnostics diagnostics = 9;
+  repeated NightMode night_mode = 10;
+  repeated Cabin cabin = 11;
+  repeated Climate climate = 12;
+  repeated DrivingRestrictions restrictions = 13;
+  repeated DeadReckoning dead_reckoning = 14;
+  repeated Passenger passenger = 15;
+  repeated DoorState doors = 16;
+  repeated LightState lights = 17;
+  repeated Acceleration acceleration = 19;
+  repeated Rotation rotation = 20;
+}
+
+message Location {
+  // Milliseconds since the Unix epoch.
+  optional uint64 stamp = 1;
+  // Degrees scaled by 1e7.
+  optional int32 latitude = 2;
+  optional int32 longitude = 3;
+  optional uint32 accuracy = 4;
+  optional int32 altitude = 5;
+  optional int32 speed = 6;
+  optional int32 bearing = 7;
+}
+
+// Angles scaled by 1e6.
+message Heading {
+  optional int32 bearing = 1;
+  optional int32 pitch = 2;
+  optional int32 roll = 3;
+}
+
+// Speed scaled by 1e6. The unit is not settled in the public record; treat the
+// value as opaque unless a real head unit has been measured against a known
+// reference.
+message RoadSpeed {
+  optional int32 speed = 1;
+  optional bool cruise_engaged = 2;
+  optional bool cruise_set = 3;
+}
+
+message EngineSpeed {
+  optional int32 rpm = 1;
+}
+
+message Odometer {
+  optional int32 total = 1;
+  optional int32 trip = 2;
+}
+
+message FuelState {
+  optional int32 level = 1;
+  optional int32 range = 2;
+  optional bool low = 3;
+}
+
+message ParkingBrake {
+  optional bool engaged = 1;
+}
+
+enum Gear {
+  GEAR_NEUTRAL = 0;
+  GEAR_1 = 1;
+  GEAR_2 = 2;
+  GEAR_3 = 3;
+  GEAR_4 = 4;
+  GEAR_5 = 5;
+  GEAR_6 = 6;
+  GEAR_7 = 7;
+  GEAR_8 = 8;
+  GEAR_9 = 9;
+  GEAR_10 = 10;
+  GEAR_DRIVE = 100;
+  GEAR_PARK = 101;
+  GEAR_REVERSE = 102;
+}
+
+message GearState {
+  optional Gear gear = 1;
+}
+
+message Diagnostics {
+  optional bytes payload = 1;
+}
+
+// Drives the dark theme. The head unit is authoritative -- it knows about
+// headlights and tunnels, which the phone does not.
+message NightMode {
+  optional bool night = 1;
+}
+
+message Cabin {
+  optional int32 cabin_temperature = 1;
+  optional int32 outside_temperature = 2;
+  optional int32 pressure = 3;
+}
+
+message Climate {
+  optional int32 target_temperature = 1;
+  optional int32 fan_speed = 2;
+}
+
+// A bitmask of what the phone must not do while the vehicle is moving. This is
+// not advisory: honouring it is the difference between a projection stack that
+// is legal to use and one that is not.
+enum DrivingRestriction {
+  DRIVING_UNRESTRICTED = 0;
+  DRIVING_NO_VIDEO = 1;
+  DRIVING_NO_KEYBOARD = 2;
+  DRIVING_NO_VOICE_ENTRY = 4;
+  DRIVING_NO_SETUP = 8;
+  DRIVING_SHORT_TEXT_ONLY = 16;
+  DRIVING_FULLY_RESTRICTED = 31;
+}
+
+message DrivingRestrictions {
+  optional int32 mask = 1;
+}
+
+message DeadReckoning {
+  optional int32 steering_angle = 1;
+  optional int32 wheel_speed = 2;
+}
+
+message Passenger {
+  optional bool present = 1;
+}
+
+message DoorState {
+  optional bool hood_open = 1;
+  optional bool boot_open = 2;
+  repeated bool doors_open = 3;
+}
+
+message LightState {
+  optional int32 headlights = 1;
+  optional int32 indicators = 2;
+  optional bool hazards = 3;
+}
+
+// Scaled by 1e3.
+message Acceleration {
+  optional int32 x = 1;
+  optional int32 y = 2;
+  optional int32 z = 3;
+}
+
+message Rotation {
+  optional int32 x = 1;
+  optional int32 y = 2;
+  optional int32 z = 3;
+}

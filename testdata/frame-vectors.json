@@ -1,0 +1,110 @@
+{
+  "_comment": [
+    "Golden frame vectors for the AAP link layer.",
+    "",
+    "Both the Kotlin :protocol module and the Python emulator assert against",
+    "this file. The bytes were derived by hand from the written frame layout in",
+    "docs/01-aap-wire-format.md, not produced by running either implementation,",
+    "so the file is an independent third opinion rather than a snapshot of",
+    "whatever the code happened to do on the day it was written.",
+    "",
+    "All byte strings are lowercase hex. 'flags' is the semantic flag value a",
+    "caller passes to the encoder (CONTROL=4, ENCRYPTED=8); the fragmentation",
+    "bits visible in 'frames' are derived by the encoder itself."
+  ],
+  "vectors": [
+    {
+      "name": "control message fits in one bulk frame",
+      "channel": 0,
+      "flags": 4,
+      "fragmentSize": 16384,
+      "payload": "0001",
+      "frames": ["000700020001"],
+      "note": "flags byte 0x07 = CONTROL|FIRST|LAST. No total-length field on a bulk frame."
+    },
+    {
+      "name": "encrypted payload on the video channel",
+      "channel": 9,
+      "flags": 8,
+      "fragmentSize": 16384,
+      "payload": "00010203040506070809",
+      "frames": ["090b000a00010203040506070809"],
+      "note": "flags byte 0x0b = ENCRYPTED|FIRST|LAST."
+    },
+    {
+      "name": "empty payload still produces a well-formed frame",
+      "channel": 1,
+      "flags": 0,
+      "fragmentSize": 16384,
+      "payload": "",
+      "frames": ["01030000"],
+      "note": "A zero-length message is legal; the header alone goes on the wire."
+    },
+    {
+      "name": "fragmented message with a short trailing fragment",
+      "channel": 3,
+      "flags": 0,
+      "fragmentSize": 4,
+      "payload": "00010203040506070809",
+      "frames": [
+        "030100040000000a00010203",
+        "0300000404050607",
+        "030200020809"
+      ],
+      "note": "Opening fragment carries the 8-byte header with total length 0x0000000a; continuations carry the 4-byte header only. The middle fragment has neither FIRST nor LAST, so its flags byte is 0x00."
+    },
+    {
+      "name": "payload that divides evenly into fragments",
+      "channel": 2,
+      "flags": 4,
+      "fragmentSize": 4,
+      "payload": "0001020304050607",
+      "frames": [
+        "020500040000000800010203",
+        "0206000404050607"
+      ],
+      "note": "No empty trailing fragment when the payload is an exact multiple of the fragment size."
+    }
+  ],
+  "assemblyVectors": [
+    {
+      "name": "interleaved channels reassemble independently",
+      "_comment": [
+        "Frames are fed to the assembler in the listed order. A fragmented",
+        "message on channel 3 is interrupted by a complete control message on",
+        "channel 0; the assembler must not splice them."
+      ],
+      "frames": [
+        "030100040000000800010203",
+        "000700020ff0",
+        "0302000404050607"
+      ],
+      "expected": [
+        { "channel": 0, "payload": "0ff0" },
+        { "channel": 3, "payload": "0001020304050607" }
+      ]
+    }
+  ],
+  "rejectVectors": [
+    {
+      "name": "continuation frame with no open message",
+      "frames": ["0302000400010203"],
+      "reason": "LAST fragment on channel 3 without a preceding FIRST"
+    },
+    {
+      "name": "announced total length shorter than the first fragment",
+      "frames": ["030100040000000200010203"],
+      "reason": "total length 2 is smaller than the 4-byte opening fragment"
+    },
+    {
+      "name": "message ends before its announced length",
+      "frames": ["030100040000000c00010203", "0302000404050607"],
+      "reason": "8 bytes delivered against an announced 12"
+    },
+    {
+      "name": "semantic flags change mid-message",
+      "frames": ["030900040000000800010203", "0302000404050607"],
+      "reason": "opening fragment is ENCRYPTED, continuation is not"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+# Head-unit emulator dependencies.
+#
+# cryptography >= 42 is required: the emulator reports certificate validity in
+# diagnostics via not_valid_after_utc, which older releases do not expose.
+cryptography>=42
+protobuf>=5
+pytest>=8

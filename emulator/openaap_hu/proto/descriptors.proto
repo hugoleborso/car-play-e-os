@@ -1,0 +1,94 @@
+// Copyright 2026 The openaap authors.
+// Licensed under the Apache License, Version 2.0.
+//
+// The channel entry announced in the service discovery response.
+//
+// This is the one message in the whole schema whose field numbers are dictated
+// by the wire format rather than chosen here. A receiver identifies what a
+// channel *is* by which sub-descriptor field number is populated, so these
+// numbers -- 1, 2, 3, 4, 5, 6, 8, 10, 12, 13 -- are the protocol, and 7, 9 and
+// 11 are absent on purpose. The message and field *names* are still ours.
+
+syntax = "proto2";
+
+package openaap.hu.v1;
+
+import "media.proto";
+import "sensors.proto";
+import "input.proto";
+
+message SensorSlot {
+  optional SensorKind kind = 1;
+}
+
+message SensorSourceInfo {
+  repeated SensorSlot slot = 1;
+}
+
+// A sink the phone writes media into: the screen, or one of the sound lanes.
+message MediaSinkInfo {
+  optional StreamKind stream = 1;
+  optional SoundLane lane = 2;
+  // How many media messages the sink can hold before it stalls. Advisory; the
+  // binding number is max_unacked in the setup reply.
+  optional uint32 buffered_messages = 3;
+  repeated SoundFormat sound_format = 4;
+  repeated PictureFormat picture_format = 5;
+  optional uint32 sink_delay_ms = 6;
+}
+
+// A source the phone reads media from -- in practice only the microphone.
+message MediaSourceInfo {
+  optional StreamKind stream = 1;
+  optional SoundFormat sound_format = 2;
+  optional bool gain_control = 3;
+}
+
+message InputSourceInfo {
+  repeated uint32 code = 1;
+  optional TouchSurfaceInfo touch_surface = 2;
+  optional bool has_dial = 3;
+}
+
+message BluetoothInfo {
+  optional string adapter_address = 1;
+  // Pairing methods the head unit will accept, as opaque indices.
+  repeated int32 pairing_method = 2;
+}
+
+message NavigationStatusInfo {
+  optional uint32 min_interval_ms = 1;
+  optional uint32 status_lines = 2;
+  optional uint32 line_columns = 3;
+}
+
+message PhoneStatusInfo {
+  optional bool call_control = 1;
+  optional bool signal_strength = 2;
+}
+
+message VendorExtensionInfo {
+  optional string vendor = 1;
+  repeated string capability = 2;
+  optional bytes payload = 3;
+}
+
+message GenericNotificationInfo {
+  optional string source = 1;
+}
+
+// Exactly one sub-descriptor is populated; its field number says what the
+// channel is. The channel id itself is assigned by the head unit at runtime and
+// carries no meaning -- see the strictness notes in session.py.
+message ChannelEntry {
+  optional uint32 channel_id = 1;
+  optional SensorSourceInfo sensor_source = 2;
+  optional MediaSinkInfo media_sink = 3;
+  optional InputSourceInfo input_source = 4;
+  optional MediaSourceInfo media_source = 5;
+  optional BluetoothInfo bluetooth = 6;
+  optional NavigationStatusInfo navigation_status = 8;
+  optional PhoneStatusInfo phone_status = 10;
+  optional VendorExtensionInfo vendor_extension = 12;
+  optional GenericNotificationInfo generic_notification = 13;
+}

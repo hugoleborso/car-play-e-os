@@ -1,0 +1,86 @@
+// Copyright 2026 The openaap authors.
+// Licensed under the Apache License, Version 2.0.
+//
+// Audio and video channel messages. See the header of control.proto for the
+// provenance rules these definitions follow.
+
+syntax = "proto2";
+
+package openaap;
+
+import "openaap/control.proto";
+
+option java_package = "org.openaap.protocol.proto";
+option java_outer_classname = "MediaProto";
+option java_multiple_files = true;
+
+// Opens negotiation on a media channel.
+//
+// The single field is ambiguous across the public record: some implementations
+// treat it as an index into the format list the head unit advertised, others as
+// the stream kind. The value that is known to work against real hardware is the
+// stream kind -- 3 for video, 1 for audio -- and in the common case of a single
+// advertised format the two readings coincide anyway. We send the stream kind.
+message MediaSetupRequest {
+  optional uint32 selector = 1;
+}
+
+enum MediaReadiness {
+  MEDIA_READINESS_NONE = 0;
+  MEDIA_READINESS_FAILED = 1;
+  MEDIA_READINESS_READY = 2;
+}
+
+message MediaSetupResponse {
+  optional MediaReadiness readiness = 1;
+  // Credit window: how many media messages may be outstanding before the phone
+  // must wait for an acknowledgement. Head units commonly advertise 1, meaning
+  // strictly one in flight. Ignoring this stalls or drops the channel.
+  optional uint32 max_unacked = 2;
+  repeated uint32 accepted_formats = 3;
+}
+
+message MediaStartIndication {
+  optional int32 session = 1;
+  optional uint32 format = 2;
+}
+
+message MediaStopIndication {}
+
+// Returns credit to the sender. On the microphone channel the direction
+// reverses and the phone is the one sending these.
+message MediaAck {
+  optional int32 session = 1;
+  optional uint32 count = 2;
+}
+
+enum VideoFocusState {
+  VIDEO_FOCUS_NONE = 0;
+  VIDEO_FOCUS_HELD = 1;
+  VIDEO_FOCUS_RELEASED = 2;
+}
+
+message VideoFocusRequest {
+  optional int32 display_index = 1;
+  optional VideoFocusState requested = 2;
+  optional uint32 reason = 3;
+}
+
+// The video channel will not start until this arrives. Audio channels have no
+// equivalent and may start straight after their setup response.
+message VideoFocusIndication {
+  optional VideoFocusState state = 1;
+  optional bool spontaneous = 2;
+}
+
+message MicrophoneOpenRequest {
+  optional bool open = 1;
+  optional bool noise_cancellation = 2;
+  optional bool echo_cancellation = 3;
+  optional int32 max_unacked = 4;
+}
+
+message MicrophoneOpenResponse {
+  optional int32 session = 1;
+  optional uint32 result = 2;
+}
