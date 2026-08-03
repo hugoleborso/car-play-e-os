@@ -7,7 +7,37 @@ on:
 
 jobs:
   jvm:
-    name: JVM protocol stack
+    name: JVM protocol stack, without an Android SDK
+    runs-on: ubuntu-latest
+    # GitHub's runner image ships an Android SDK and sets ANDROID_HOME, so this
+    # job has to clear it deliberately. Otherwise settings.gradle.kts finds one,
+    # pulls the Android modules into the build, and the claim this job exists to
+    # defend -- that the whole protocol implementation builds and tests with
+    # nothing but a JDK -- goes untested.
+    env:
+      ANDROID_HOME: ""
+      ANDROID_SDK_ROOT: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and test
+        run: ./gradlew build --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: jvm-test-reports
+          path: "**/build/reports/tests/**"
+
+  android:
+    name: Android app
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,17 +49,24 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # No Android SDK is installed on purpose. The entire protocol
-      # implementation lives in pure-JVM modules precisely so that it stays
-      # testable without one, and this job fails if that ever stops being true.
-      - name: Build and test
-        run: ./gradlew build --stacktrace
+      # Lint is not cosmetic here. It is what catches a foreground service type
+      # whose permission set we cannot satisfy, or a manifest that would throw
+      # on the first connection to a car -- failures that would otherwise only
+      # appear on a phone, plugged into a head unit, with no debugger attached.
+      - name: Assemble and lint
+        run: ./gradlew :android:app:assembleDebug :android:app:lintDebug --stacktrace
 
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: jvm-test-reports
-          path: "**/build/reports/tests/**"
+          name: android-lint-reports
+          path: "**/build/reports/lint*"
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: openaap-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
 
   emulator:
     name: Head-unit emulator
