@@ -35,13 +35,20 @@ include(":harness")
 // so that `./gradlew build` keeps working in SDK-less environments such as CI
 // sandboxes and the container this project was bootstrapped in.
 // ---------------------------------------------------------------------------
-val androidSdk: String? = System.getenv("ANDROID_SDK_ROOT")
-    ?: System.getenv("ANDROID_HOME")
+// takeIf(String::isNotBlank) is load-bearing rather than defensive. An
+// environment variable set to the empty string is present and blank, not
+// absent, so it survives the elvis chain -- and file("") resolves to the
+// project directory, which is very much a directory. The Android modules would
+// then be pulled into a build that has no SDK to compile them against. Any
+// setup that clears these variables to opt out of Android hits this.
+val androidSdk: String? = System.getenv("ANDROID_SDK_ROOT")?.takeIf(String::isNotBlank)
+    ?: System.getenv("ANDROID_HOME")?.takeIf(String::isNotBlank)
     ?: file("local.properties")
         .takeIf { it.exists() }
         ?.readLines()
         ?.firstOrNull { it.startsWith("sdk.dir=") }
         ?.substringAfter("=")
+        ?.takeIf(String::isNotBlank)
 
 if (androidSdk != null && file(androidSdk).isDirectory) {
     include(":android:app")
