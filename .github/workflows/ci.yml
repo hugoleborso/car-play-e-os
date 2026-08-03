@@ -47,35 +47,10 @@ jobs:
       - name: Test
         run: python -m pytest emulator/tests -q
 
-  interop:
-    name: Phone against emulator
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - uses: gradle/actions/setup-gradle@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install emulator dependencies
-        run: pip install -r emulator/requirements.txt
-
-      # The load-bearing test. The Kotlin phone side and the Python head-unit
-      # side were written separately from the same written spec; this runs them
-      # against each other over a real socket. A disagreement here is a
-      # disagreement that would otherwise only surface in a car, silently.
-      - name: End-to-end session
-        run: ./gradlew :harness:test --tests "*Interop*" --stacktrace
-
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: interop-reports
-          path: "**/build/reports/tests/**"
+  # The end-to-end job that runs the Kotlin phone side against the Python
+  # head-unit emulator over a real socket lands with the emulator's session
+  # driver. It is the load-bearing test -- the two sides were written
+  # separately from the same written spec, so a disagreement between them is
+  # one that would otherwise only surface in a car, silently -- but asserting
+  # on a test that does not exist yet would only produce a red badge that
+  # everyone learns to ignore.
