@@ -59,26 +59,42 @@ jobs:
           Needs Android 10 or later. No Play Services, no Google account, no
           root, no custom ROM.
 
-          **Check you got it.** The version string is `0.1.0` in every release
-          and cannot tell you anything. The commit can: the app prints
-          `v0.1.0 · build <commit>` under its title, and it must match the
-          commit in this release's name. Testing an old build in a car park is
-          a wasted trip that looks exactly like a failed experiment.
+          **Check you got it.** The app prints `vVERSION · build COMMIT` under
+          its title, and it must match this release. Testing an old build in a
+          car park is a wasted trip that looks exactly like a failed experiment.
 
           ## What it does
 
-          It **measures**, it does not project. Plug the phone into a car's data
-          USB port and the app presents a series of generated identities to the
-          car, one per connection, recording how far each one got and what the
-          car said when it stopped. That question — what a production head unit
-          actually checks about a phone's certificate — has no published answer
-          after eleven years of community work.
+          Two modes, chosen with a button on the app's own screen — the cable is
+          in the car when it matters, so nothing important hides behind `adb`.
 
-          The app's screen shows results as they arrive, which matters because
-          the cable is in the car and a computer cannot see the phone while it
-          is happening. Press **Share report** when it is done.
+          **Measuring** is the default. Each connection presents a different
+          generated certificate and records how far the session got and what the
+          car said when it stopped. What a production head unit actually checks
+          about a phone's certificate has had no published answer in eleven years
+          of community work.
+
+          **Projecting** sends a picture to the car screen. Worth trying only
+          after a car has been seen accepting a certificate we generated.
+
+          Results appear on the phone as they arrive, because a computer cannot
+          see the phone while the interesting part is happening. **Share report**
+          sends the summary and the raw records together.
 
           Full procedure: [field test protocols](https://github.com/OWNER_REPO/blob/main/docs/11-field-test-protocols.md).
+
+          ## What has actually been observed
+
+          One production head unit — a VW MIB2 — completed a TLS 1.2 handshake
+          and declared the session authenticated against certificates we
+          generated ourselves, including one whose validity window had not begun.
+          It presented no certificate of its own, though we asked for one.
+
+          Read that as promising rather than settled. The run that produced it
+          also exposed two defects in this app, both since fixed: a silent
+          reconnect consumed identities that were never measured, and an
+          unparseable verdict was being read as acceptance. A confirming run has
+          not happened yet.
 
           ## About the signature
 
@@ -90,10 +106,23 @@ jobs:
 
           ## What it does not do
 
-          Nothing here has run against physical hardware yet, and it does not
-          send video or audio to a car. That pipeline is unfinished.
+          **No audio.** There is no audio source yet, and capturing another
+          app's output needs a consent dialog that cannot be raised from a car.
+
+          **No third-party apps on the car screen.** It projects its own
+          interface, not the phone's display or someone else's map. That is a
+          consequence of staying an ordinary APK: mirroring arbitrary content
+          means injecting input events, which needs a signature permission only
+          a platform-signed build can hold. Android Auto also projects its own
+          interface rather than the phone's screen, so the limitation is
+          narrower than it sounds.
+
+          **The projection path has never run against real hardware.** The
+          measurement path has.
           NOTES
           sed -i "s|OWNER_REPO|${GITHUB_REPOSITORY}|" release-notes.md
+          sed -i "s|VERSION|${{ steps.build.outputs.version }}|" release-notes.md
+          sed -i "s|COMMIT|${{ steps.build.outputs.short }}|" release-notes.md
 
       # A rolling release rather than a tagged one, so that /releases/latest is
       # always the current build and nobody has to cut a tag to make the app
