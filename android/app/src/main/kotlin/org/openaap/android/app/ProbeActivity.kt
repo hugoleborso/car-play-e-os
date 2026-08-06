@@ -139,6 +139,7 @@ public class ProbeActivity : Activity() {
         statusCard(records, events)
 
         diagnostics()
+        projectionReport()
         if (events.isNotEmpty()) eventLog(events)
         if (records.isEmpty()) instructions()
 
@@ -229,6 +230,39 @@ public class ProbeActivity : Activity() {
             }
         )
         container.addView(card, marginParams(top = 8))
+    }
+
+    /**
+     * The last projection session, in full, on screen.
+     *
+     * Shown rather than only shareable because the person who needs it first is
+     * standing next to the car deciding whether to try again. It is long, so it
+     * sits in its own scrolling box instead of stretching the page.
+     */
+    private fun projectionReport() {
+        val file = SessionTrace(this).reportFile
+        if (!file.isFile) return
+        val content = runCatching { file.readText() }.getOrNull()?.takeIf { it.isNotBlank() } ?: return
+
+        heading(getString(R.string.projection_report_heading))
+        val box = ScrollView(this).apply {
+            setBackgroundColor(surfaceColour())
+            addView(
+                TextView(this@ProbeActivity).apply {
+                    text = content
+                    setTypeface(Typeface.MONOSPACE)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 9.5f)
+                    setPadding(dp(12), dp(12), dp(12), dp(12))
+                    // The transcript lines are wide and wrapping them makes the
+                    // timings impossible to follow, so it scrolls both ways.
+                    setHorizontallyScrolling(true)
+                }
+            )
+        }
+        container.addView(
+            box,
+            LinearLayout.LayoutParams(MATCH_PARENT, dp(320)).apply { topMargin = dp(4) },
+        )
     }
 
     private fun statusCard(records: List<ProbeRecord>, events: List<ProbeEvents.Event>) {
@@ -449,7 +483,10 @@ public class ProbeActivity : Activity() {
         // Sharing is offered whenever there is anything to send, including a log
         // with no results in it -- "the cable did nothing" is a finding and is
         // worth receiving.
-        if (records.isNotEmpty() || ProbeEvents.all(this).isNotEmpty()) {
+        if (records.isNotEmpty() ||
+            ProbeEvents.all(this).isNotEmpty() ||
+            SessionTrace(this).reportFile.isFile
+        ) {
             row.addView(
                 Button(this).apply {
                     setText(R.string.probe_share)
@@ -507,7 +544,7 @@ public class ProbeActivity : Activity() {
         // summary attached and the raw records -- the ones that could confirm
         // it -- stayed on the phone. A share that silently drops the evidence
         // is worse than no share, because it looks complete.
-        val attachments = listOf(file, runner.recordsFile)
+        val attachments = listOf(file, runner.recordsFile, SessionTrace(this).reportFile)
             .filter { it.isFile }
             .mapNotNull { candidate ->
                 runCatching { FileProvider.getUriForFile(this, "$packageName.reports", candidate) }

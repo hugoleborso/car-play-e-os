@@ -94,4 +94,5 @@
     <string name="mode_projecting_detail">The next connection sends a picture to the car screen. Only worth trying once the car has been seen accepting a certificate we generated.</string>
     <string name="mode_switch_to_project">Switch to projecting</string>
     <string name="mode_switch_to_probe">Switch to measuring</string>
+    <string name="projection_report_heading">Last projection session</string>
 </resources>
