@@ -43,6 +43,8 @@
     <string name="probe_complete">Probe complete — share the report</string>
     <string name="probe_progress">Probe %1$d: %2$s → %3$s</string>
 
+    <string name="probe_build" translatable="false">v%1$s · build %2$s</string>
+
     <string name="probe_status_seen_nothing_recorded">The cable did something, but no probe finished</string>
     <string name="probe_last_activity">Last activity %1$s — %2$s</string>
     <string name="probe_restarted">Cleared. Plug into the car to start again.</string>

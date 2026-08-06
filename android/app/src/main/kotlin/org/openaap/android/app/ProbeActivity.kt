@@ -133,6 +133,7 @@ public class ProbeActivity : Activity() {
         val events = ProbeEvents.recent(this)
 
         title(getString(R.string.probe_title))
+        buildStamp()
         paragraph(getString(R.string.probe_intro))
         statusCard(records, events)
 
@@ -153,6 +154,29 @@ public class ProbeActivity : Activity() {
 
         actions(records)
     }
+
+    /**
+     * Which build this is, in the one place someone will look before driving
+     * somewhere.
+     *
+     * The version string is hand-maintained and has said 0.1.0 through every
+     * release, so it cannot answer "did the new one install?". The commit can,
+     * and it costs one line on screen. Testing the wrong build in a car park is
+     * a wasted trip that looks exactly like a failed experiment.
+     */
+    private fun buildStamp() = container.addView(
+        TextView(this).apply {
+            text = getString(
+                R.string.probe_build,
+                packageManager.getPackageInfo(packageName, 0).versionName,
+                BuildConfig.GIT_REVISION,
+            )
+            setTypeface(Typeface.MONOSPACE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            alpha = 0.6f
+        },
+        marginParams(top = 2)
+    )
 
     private fun statusCard(records: List<ProbeRecord>, events: List<ProbeEvents.Event>) {
         val (statusText, colour) = when {
@@ -433,6 +457,10 @@ public class ProbeActivity : Activity() {
                 Intent.EXTRA_TEXT,
                 buildString {
                     appendLine(getString(R.string.probe_share_subject))
+                    // Which build produced these numbers. A report from an old
+                    // APK is worse than no report, because it looks like fresh
+                    // evidence and quietly contradicts the current code.
+                    appendLine("build ${BuildConfig.GIT_REVISION} · ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}")
                     appendLine()
                     appendLine(runCatching { file.readText() }.getOrDefault(""))
                     appendLine("--- events ---")
