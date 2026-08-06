@@ -20,6 +20,20 @@ val gitRevision: String = providers.exec {
 }.standardOutput.asText.map { it.trim() }.orElse("unknown").get()
     .ifBlank { "unknown" }
 
+/**
+ * versionCode, derived from the number of commits rather than maintained.
+ *
+ * It sat at 1 through every release, which is not cosmetic: Android compares
+ * versionCode to decide whether an APK is an update, so a phone can decline to
+ * install a newer build over an older one carrying the same number. Counting
+ * commits increases monotonically on any branch that only moves forward, and
+ * nobody has to remember it.
+ */
+val buildNumber: Int = providers.exec {
+    commandLine("git", "rev-list", "--count", "HEAD")
+}.standardOutput.asText.map { it.trim() }.orElse("").get()
+    .toIntOrNull() ?: 1
+
 android {
     namespace = "org.openaap.android.app"
     compileSdk = 35
@@ -28,10 +42,14 @@ android {
         applicationId = "org.openaap.projection"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
+        versionCode = buildNumber
+        // 0.2.0: the projection path landed -- encoder, renderer, car interface
+        // and touch input -- and the probe was reworked after its first run
+        // against real hardware.
+        //
         // Kept a plain literal: the release workflow greps this line, and the
         // revision travels in BuildConfig instead, where nothing has to parse it.
-        versionName = "0.1.0"
+        versionName = "0.2.0"
         buildConfigField("String", "GIT_REVISION", "\"$gitRevision\"")
     }
 
