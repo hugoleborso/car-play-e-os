@@ -187,6 +187,57 @@ in these cars.
 publishable result and it closes an eleven-year-old question. Do not be
 disappointed by it.
 
+**This has been run.** The head unit completed TLS every time and then refused
+with status `-3`, for all nine identities. The section below is what to do next,
+and it is now the app's default.
+
+---
+
+## P3b — The status matrix: what does `-3` actually mean?
+
+**Why.** P3 produced one number, nine times, and nothing public documents it.
+`-3` reads two ways and the existing evidence cannot separate them: "your
+certificate is not one I trust", or "something went wrong". Under the first the
+number locates the trust wall; under the second it locates nothing. A tenth
+certificate cannot tell them apart, because both readings predict the same
+answer to it.
+
+So this matrix holds the certificate still and breaks the session in seven other
+ways, to see whether the number moves.
+
+**Steps.** Identical to P3 — plug in, wait, unplug, repeat about ten times —
+except that the app must be in **Reading the refusal** mode. It ships that way;
+the button on the mode card cycles through the three jobs.
+
+The files are named for the matrix:
+
+```
+adb pull /sdcard/Android/data/org.openaap.projection/files/status-report.txt
+adb pull /sdcard/Android/data/org.openaap.projection/files/status-records.jsonl
+```
+
+**Record.** The **Codes the car gave** block, and the raw verdict bytes on every
+row. The hex is the evidence; the decoded number is our reading of it, and this
+project has already published one wrong reading of these exact bytes.
+
+**What it means.**
+
+| What you see | What it says |
+| --- | --- |
+| The same code on every row | A general "something went wrong". It says nothing about certificates, and the trust wall is unlocated. A real result, and a deflating one. |
+| The same code, but only where TLS completed | Bounded to sessions that got that far. Consistent with either reading; no conclusion yet. |
+| Two or more different codes | The code space is meaningful and part of it is mapped. Nobody has published any of these values. Send them. |
+| `baseline` and `no-peer-cert-request` differ | The car has been reacting to whether we ask *it* for a certificate, not to what we present. That would relocate the whole question. |
+| The car presents a certificate on `invite-car-certificate` | The first published MIB2 head unit certificate. Worth the trip on its own, whatever the code does. |
+
+**What this cannot settle.** There is no positive control. A session this head
+unit accepts needs a certificate signed by Google, which this project will not
+obtain, so the code for success is never measured and every row is a comparison
+between kinds of failure. If the number never moves, that bounds what `-3` can
+mean; it is not evidence that the wall is elsewhere. P5 in
+[head unit inspection](12-head-unit-inspection.md) reads the answer out of the
+binary instead, and is worth more than any number of connections.
+
 ---
 
 ## P4 — Bench test over real USB, no car needed

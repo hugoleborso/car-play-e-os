@@ -142,6 +142,33 @@ class AapTlsEngineTest {
     }
 
     @Test
+    fun `the certificate request is what decides whether the peer identifies itself`() {
+        // Calibration for the status matrix. A real MIB2 presents no certificate
+        // of its own even though we ask for one, and one reading of its refusal
+        // is that it is reporting *that* rather than judging ours. Before
+        // spending a connection on the question, the request has to be shown to
+        // be the thing that controls the answer -- against a peer that certainly
+        // has a certificate to send.
+        val ca = TestPki.authority()
+
+        val asked = AapTlsEngine(TlsRole.SERVER, StaticCredentialProvider.of("phone", ca.issue("phone")))
+        handshake(asked, AapTlsEngine(TlsRole.CLIENT, StaticCredentialProvider.of("hu", ca.issue("hu"))))
+        assertTrue(
+            asked.peerChain.isNotEmpty(),
+            "a peer with a certificate sent none although it was asked",
+        )
+
+        val unasked = AapTlsEngine(
+            TlsRole.SERVER,
+            StaticCredentialProvider.of("phone", ca.issue("phone")),
+            requestPeerCertificate = false,
+        )
+        handshake(unasked, AapTlsEngine(TlsRole.CLIENT, StaticCredentialProvider.of("hu", ca.issue("hu"))))
+        assertTrue(unasked.handshakeComplete, "dropping the request broke the handshake")
+        assertTrue(unasked.peerChain.isEmpty(), "a certificate arrived that was never requested")
+    }
+
+    @Test
     fun `elliptic curve credentials negotiate as well as RSA`() {
         val ca = TestPki.authority("ec ca", TestPki.KeyType.EC_P256)
         val phone = AapTlsEngine(

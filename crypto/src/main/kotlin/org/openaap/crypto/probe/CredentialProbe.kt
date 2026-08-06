@@ -61,8 +61,13 @@ public object CredentialProbe {
      * the authority by *name* or by *key*. A name-only pin would be a genuinely
      * new finding; a key pin is the expected result. There is no way to learn
      * this without asking the question.
+     *
+     * Public because the status matrix needs the same string for the opposite
+     * purpose — naming it as an issuer we would accept, to see whether that is
+     * what persuades a head unit to present its own certificate. One declaration
+     * with one justification, rather than the same string written twice.
      */
-    private const val GOOGLE_LINK_AUTHORITY_DN: String =
+    public const val GOOGLE_LINK_AUTHORITY_DN: String =
         "C=US, ST=California, L=Mountain View, O=Google Automotive Link"
 
     /** Builds the full matrix. Each call generates fresh keys. */

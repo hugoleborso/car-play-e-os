@@ -8,7 +8,7 @@
     <string name="projection_connecting">Connecting to car…</string>
 
     <string name="probe_title">Head unit probe</string>
-    <string name="probe_intro">Finds out what your car checks about the phone\'s certificate. Each connection presents a different identity and records how far it got and why it stopped.</string>
+    <string name="probe_intro">Finds out what your car actually does with the phone\'s session. Each connection runs one attempt, changing exactly one thing, and records how far it got and the exact bytes the car answered with.</string>
 
     <string name="probe_status_waiting">Plug the phone into the car</string>
     <string name="probe_status_running">Probe %1$d of %2$d</string>
@@ -20,8 +20,8 @@
     <string name="probe_howto_heading">How to run it</string>
     <string name="probe_howto_1">Start the engine and let the car screen finish booting.</string>
     <string name="probe_howto_2">Plug the phone into the car\'s data USB port, with a good cable.</string>
-    <string name="probe_howto_3">Leave it connected for a minute. A car that refuses usually retries by itself, and each retry advances the probe.</string>
-    <string name="probe_howto_4">Unplug and plug back in until every identity has been tried, then share the report.</string>
+    <string name="probe_howto_3">Leave it connected for a minute. A car that refuses usually retries by itself, and each retry advances the matrix by one.</string>
+    <string name="probe_howto_4">Unplug and plug back in until every attempt has been run, then share the report.</string>
 
     <string name="probe_results_heading">Results</string>
     <string name="probe_head_unit_protocol">Car offered protocol %1$s</string>
@@ -88,12 +88,22 @@
     <string name="events_heading">What the cable did</string>
 
     <!-- Which job the next connection does. -->
-    <string name="mode_probing">Measuring the car</string>
-    <string name="mode_probing_detail">Each connection presents a different certificate and records how the car reacts. Nothing is displayed on the car screen.</string>
+    <string name="mode_credentials">Trying certificates</string>
+    <string name="mode_credentials_detail">Each connection presents a different certificate and records how the car reacts. Already run once: all nine were refused with the same code.</string>
+    <string name="mode_status">Reading the refusal</string>
+    <string name="mode_status_detail">Each connection breaks the session in a different way, to find out whether the car\'s refusal code changes. If it never changes, the code says nothing about certificates.</string>
     <string name="mode_projecting">Projecting to the car</string>
     <string name="mode_projecting_detail">The next connection sends a picture to the car screen. Only worth trying once the car has been seen accepting a certificate we generated.</string>
-    <string name="mode_switch_to_project">Switch to projecting</string>
-    <string name="mode_switch_to_probe">Switch to measuring</string>
+    <string name="mode_switch_to">Next: %1$s</string>
+
+    <string name="probe_next_step">Next connection: %1$s — %2$s</string>
+
+    <!-- What the spread of refusal codes means. -->
+    <string name="codes_heading">Codes the car gave</string>
+    <string name="codes_discriminating">Different failures get different codes, so the code means something and part of it is now mapped. No public source records any of these values.</string>
+    <string name="codes_one_bounded">One code, and only where the session got far enough to earn a verdict. That limits what it can mean without showing it to be about certificates.</string>
+    <string name="codes_generic">One code for every kind of failure, including ones with nothing to do with the certificate. It is a general \"something went wrong\" and tells us nothing about the trust wall.</string>
+    <string name="codes_none">The car has not sent a verdict in any attempt that got far enough to expect one.</string>
     <string name="projection_report_heading">Last projection session</string>
     <string name="variant_heading">Projection attempts</string>
     <string name="variant_next">Next connection: %1$d of %2$d — %3$s (%4$s)</string>
