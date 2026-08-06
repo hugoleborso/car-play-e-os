@@ -135,6 +135,7 @@ public class ProbeActivity : Activity() {
         title(getString(R.string.probe_title))
         buildStamp()
         paragraph(getString(R.string.probe_intro))
+        modeCard()
         statusCard(records, events)
 
         diagnostics()
@@ -177,6 +178,58 @@ public class ProbeActivity : Activity() {
         },
         marginParams(top = 2)
     )
+
+    /**
+     * Chooses what the next connection does: measure, or project.
+     *
+     * On screen rather than behind an `adb` flag, because the whole design
+     * constraint of this app is that the cable is in the car when it matters.
+     * A mode only reachable from a computer is a mode nobody switches at the
+     * moment they want to switch it.
+     *
+     * Measuring stays the default. Projection is worth trying only once a car
+     * has been observed accepting an identity we generate, and until then a
+     * projection session cannot get past its first minute.
+     */
+    private fun modeCard() {
+        val projecting = !ProjectionService.probeMode(this)
+        val card = card()
+        card.addView(
+            TextView(this).apply {
+                text = getString(
+                    if (projecting) R.string.mode_projecting else R.string.mode_probing
+                )
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(if (projecting) ACCENT_GOOD else ACCENT_NEUTRAL)
+            }
+        )
+        card.addView(
+            TextView(this).apply {
+                text = getString(
+                    if (projecting) R.string.mode_projecting_detail else R.string.mode_probing_detail
+                )
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                alpha = 0.8f
+                setPadding(0, dp(4), 0, 0)
+            }
+        )
+        card.addView(
+            Button(this).apply {
+                setText(if (projecting) R.string.mode_switch_to_probe else R.string.mode_switch_to_project)
+                setOnClickListener {
+                    ProjectionService.setProbeMode(this@ProbeActivity, projecting)
+                    ProbeEvents.record(
+                        this@ProbeActivity,
+                        ProbeEvents.Kind.PROGRESS,
+                        if (projecting) "Switched to measuring." else "Switched to projecting.",
+                    )
+                    render()
+                }
+            }
+        )
+        container.addView(card, marginParams(top = 8))
+    }
 
     private fun statusCard(records: List<ProbeRecord>, events: List<ProbeEvents.Event>) {
         val (statusText, colour) = when {

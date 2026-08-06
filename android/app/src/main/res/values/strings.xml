@@ -86,4 +86,12 @@
     <string name="diag_open_settings">Open app settings</string>
 
     <string name="events_heading">What the cable did</string>
+
+    <!-- Which job the next connection does. -->
+    <string name="mode_probing">Measuring the car</string>
+    <string name="mode_probing_detail">Each connection presents a different certificate and records how the car reacts. Nothing is displayed on the car screen.</string>
+    <string name="mode_projecting">Projecting to the car</string>
+    <string name="mode_projecting_detail">The next connection sends a picture to the car screen. Only worth trying once the car has been seen accepting a certificate we generated.</string>
+    <string name="mode_switch_to_project">Switch to projecting</string>
+    <string name="mode_switch_to_probe">Switch to measuring</string>
 </resources>
