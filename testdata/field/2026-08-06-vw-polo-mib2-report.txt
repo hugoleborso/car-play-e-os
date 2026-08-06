@@ -1,0 +1,139 @@
+openaap handshake probe report
+==============================================================================
+generated: 2026-08-06 19:48:45
+phone: Fairphone Fairphone 6
+android: 16 (API 36)
+build: BP2A.250805.005
+probes run: 9 of 9
+
+The head unit presented no certificate to us.
+
+
+Results
+------------------------------------------------------------------------------
+  self-signed-v1          AUTHENTICATED         
+      varies: baseline: the structure real endpoints use
+      head unit protocol: 1.0
+      TLS: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+      transcript:
+        head unit offers protocol 1.0
+        answered with 1.0
+        handshake round 1: 517 bytes in
+        handshake round 1: 1141 bytes out
+        handshake round 2: 126 bytes in
+        handshake round 2: 51 bytes out
+        TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        head unit sent an empty verdict body; reading the message itself as acceptance
+
+  self-signed-v3          AUTHENTICATED         
+      varies: certificate structure: v3 with extensions
+      head unit protocol: 1.0
+      TLS: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+      transcript:
+        head unit offers protocol 1.0
+        answered with 1.0
+        handshake round 1: 517 bytes in
+        handshake round 1: 1243 bytes out
+        handshake round 2: 126 bytes in
+        handshake round 2: 51 bytes out
+        TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        head unit sent an empty verdict body; reading the message itself as acceptance
+
+  own-ca-v1               AUTHENTICATED         
+      varies: chain depth: a real two-level chain
+      head unit protocol: 1.0
+      TLS: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+      transcript:
+        head unit offers protocol 1.0
+        answered with 1.0
+        handshake round 1: 517 bytes in
+        handshake round 1: 1913 bytes out
+        handshake round 2: 126 bytes in
+        handshake round 2: 51 bytes out
+        TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        head unit sent an empty verdict body; reading the message itself as acceptance
+
+  authority-name-match    AUTHENTICATED         
+      varies: how the authority is pinned: by name or by key
+      head unit protocol: 1.0
+      TLS: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+      transcript:
+        head unit offers protocol 1.0
+        answered with 1.0
+        handshake round 1: 517 bytes in
+        handshake round 1: 2105 bytes out
+        handshake round 2: 126 bytes in
+        handshake round 2: 51 bytes out
+        TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        head unit sent an empty verdict body; reading the message itself as acceptance
+
+  expired                 AUTHENTICATED         
+      varies: validity window: already expired
+      head unit protocol: 1.0
+      TLS: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+      transcript:
+        head unit offers protocol 1.0
+        answered with 1.0
+        handshake round 1: 517 bytes in
+        handshake round 1: 1142 bytes out
+        handshake round 2: 126 bytes in
+        handshake round 2: 51 bytes out
+        TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        head unit sent an empty verdict body; reading the message itself as acceptance
+
+  not-yet-valid           AUTHENTICATED         
+      varies: validity window: starts in the future
+      head unit protocol: 1.0
+      TLS: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+      transcript:
+        head unit offers protocol 1.0
+        answered with 1.0
+        handshake round 1: 517 bytes in
+        handshake round 1: 1142 bytes out
+        handshake round 2: 126 bytes in
+        handshake round 2: 51 bytes out
+        TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        head unit sent an empty verdict body; reading the message itself as acceptance
+
+  long-validity           AUTHENTICATED         
+      varies: validity window: decades, as real certificates use
+      head unit protocol: 1.0
+      TLS: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+      transcript:
+        head unit offers protocol 1.0
+        answered with 1.0
+        handshake round 1: 517 bytes in
+        handshake round 1: 1143 bytes out
+        handshake round 2: 126 bytes in
+        handshake round 2: 51 bytes out
+        TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        head unit sent an empty verdict body; reading the message itself as acceptance
+
+  rsa-4096                AUTHENTICATED         
+      varies: key size above the usual 2048
+      head unit protocol: 1.0
+      TLS: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+      transcript:
+        head unit offers protocol 1.0
+        answered with 1.0
+        handshake round 1: 517 bytes in
+        handshake round 1: 1909 bytes out
+        handshake round 2: 126 bytes in
+        handshake round 2: 51 bytes out
+        TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        head unit sent an empty verdict body; reading the message itself as acceptance
+
+  ec-p256                 AUTHENTICATED         
+      varies: key algorithm: elliptic curve rather than RSA
+      head unit protocol: 1.0
+      TLS: TLSv1.2 / TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+      transcript:
+        head unit offers protocol 1.0
+        answered with 1.0
+        handshake round 1: 517 bytes in
+        handshake round 1: 560 bytes out
+        handshake round 2: 126 bytes in
+        handshake round 2: 51 bytes out
+        TLS established: TLSv1.2 / TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        head unit sent an empty verdict body; reading the message itself as acceptance
+

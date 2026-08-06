@@ -3,6 +3,78 @@
 This is the document that decides whether the project succeeds. Everything else
 is engineering with known answers.
 
+## Answered, on 6 August 2026
+
+**A production VW MIB2 accepted all nine generated identities, including an
+expired one.** Measured with the probe in this repository, on a Fairphone 6
+running /e/OS, in a 2017 Polo. The raw records are in
+[`testdata/field/`](../testdata/field/).
+
+| Identity | What it varies | Result |
+| --- | --- | --- |
+| `self-signed-v1` | the structure real endpoints use | AUTHENTICATED |
+| `self-signed-v3` | v3 with extensions | AUTHENTICATED |
+| `own-ca-v1` | a real two-level chain to our own CA | AUTHENTICATED |
+| `authority-name-match` | authority pinned by name rather than key | AUTHENTICATED |
+| `expired` | **validity window already past** | AUTHENTICATED |
+| `not-yet-valid` | validity window not yet begun | AUTHENTICATED |
+| `long-validity` | decades, as real certificates use | AUTHENTICATED |
+| `rsa-4096` | key size above the usual 2048 | AUTHENTICATED |
+| `ec-p256` | elliptic curve rather than RSA | AUTHENTICATED |
+
+The finding does not rest on decoding the head unit's verdict, and that matters,
+because the verdict body was empty in all nine runs. It rests on something
+harder to misread: **the head unit's bytes never changed.**
+
+```
+                        r1 in   r1 out   r2 in   r2 out
+self-signed-v1            517     1141     126       51
+self-signed-v3            517     1243     126       51
+own-ca-v1                 517     1913     126       51
+authority-name-match      517     2105     126       51
+expired                   517     1142     126       51
+ec-p256                   517      560     126       51
+```
+
+Our outbound flight ranges from 560 to 2105 bytes, tracking the size and type of
+each certificate — so the identities really did differ and really were sent. The
+head unit's `ClientHello` is 517 bytes every time and its second flight is 126
+bytes every time. Nine different certificates, one of them expired, one signed
+by an authority we invented, produced **byte-identical** responses. There is no
+certificate-dependent branch in this head unit at this stage of the session.
+
+Two further facts fall out of the same data:
+
+- **No mutual TLS.** We set `wantClientAuth`, so a `CertificateRequest` went out
+  in every run. 126 bytes is `ClientKeyExchange` + `ChangeCipherSpec` +
+  `Finished` and leaves no room for a certificate. The head unit never sent one.
+- **A real TLS stack, not a stub.** The elliptic-curve identity negotiated
+  `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` while the rest got
+  `TLS_ECDHE_RSA_…`. It adapts correctly to what it is offered. It simply does
+  not judge it.
+
+### What this does not establish
+
+**That the session is usable.** The probe stops at the verdict by design.
+Nothing here shows the head unit will then answer a discovery request, open
+channels, or display a frame. That is the next measurement, and it is what
+projection mode exists to take.
+
+**Anything about head units in general.** This is one unit in one car. "MIB2
+does not validate" is not supported by n=1; "this MIB2 did not validate" is.
+The 2021 report below, from a 2019 Seat Ateca in the same corporate family,
+says the opposite — and both can be true of different units, different model
+years, or different firmware.
+
+**That the empty verdict body means `RESULT_OK`.** It is read as acceptance
+because the message id is itself the signal and the `result` field is optional.
+An implementation that meant something else by it would be indistinguishable
+here. The byte-level invariance above is the claim that survives either reading.
+
+The rest of this document was written before that measurement. It is kept as
+written, because the reasoning that led to a wrong prediction is worth more than
+a document quietly edited to have been right. The prediction was `unknown_ca`.
+
 ## The short version
 
 Android Auto protects its session with mutual TLS in which **the phone is the
@@ -169,6 +241,9 @@ or key-size failure. We comply and try again.
 **The head unit checks nothing.** A clean-room phone side works today. Publish
 immediately.
 
+← **This is the one that happened.** See the measurement at the top of this
+document. Written when it was thought to be the least likely of the four.
+
 ## What this changes about the design
 
 Nothing, which is the point of having found out early. The credential is one
@@ -177,3 +252,18 @@ transport, session state machine, discovery, channels, media — is identical
 under all four outcomes, and all of it is needed to run the experiment in the
 first place. There is no version of this project where the protocol work is
 wasted.
+
+### After the measurement
+
+Still nothing, and that is worth stating plainly rather than treating as luck.
+The generated identity in `ProjectionService.credentials()` was written as the
+one place a differently-provisioned credential could be swapped in, on the
+assumption it would eventually have to be. It does not have to be, on this car.
+It stays pluggable anyway, because the next car may not agree.
+
+What the result *does* change is which question is worth spending time on. The
+trust wall was the project's single point of failure and it is not there. The
+remaining unknowns are ordinary engineering with checkable answers: whether
+discovery and channel setup follow the verdict, whether a head unit of this
+generation decodes what our encoder produces, and how the session behaves over
+a drive rather than a minute in a car park.
