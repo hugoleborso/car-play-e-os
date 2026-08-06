@@ -43,13 +43,15 @@ android {
         minSdk = 29
         targetSdk = 35
         versionCode = buildNumber
-        // 0.2.0: the projection path landed -- encoder, renderer, car interface
-        // and touch input -- and the probe was reworked after its first run
-        // against real hardware.
+        // 0.3.0: the projection path got an instrument. A session now writes a
+        // full report -- wire-level transcript, the head unit's complete advert,
+        // media counters -- the way the probe always did.
+        //
+        // 0.2.0 was the projection path itself; 0.1.0 was the probe.
         //
         // Kept a plain literal: the release workflow greps this line, and the
         // revision travels in BuildConfig instead, where nothing has to parse it.
-        versionName = "0.2.0"
+        versionName = "0.3.0"
         buildConfigField("String", "GIT_REVISION", "\"$gitRevision\"")
     }
 
