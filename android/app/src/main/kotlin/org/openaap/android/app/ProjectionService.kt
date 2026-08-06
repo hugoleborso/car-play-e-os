@@ -26,6 +26,7 @@ import org.openaap.core.PhoneIdentity
 import org.openaap.core.PhoneSession
 import org.openaap.core.ResolvedChannel
 import org.openaap.core.SessionListener
+import org.openaap.core.SessionVariant
 import org.openaap.crypto.AapTlsEngine
 import org.openaap.crypto.CredentialProvider
 import org.openaap.crypto.StaticCredentialProvider
@@ -103,13 +104,29 @@ public class ProjectionService : Service() {
                 runProbe(transport)
                 return
             }
+            val variants = VariantRunner(this)
+            val variant = variants.next() ?: SessionVariant.matrix().last().also {
+                Log.i(TAG, "variant matrix complete; reusing ${it.id}")
+            }
             val record = SessionTrace(this).also(trace::set)
             record.milestone("accessory opened: ${transport.description}")
+            record.milestone("variant ${variant.id}: ${variant.varies}")
+            ProbeEvents.record(
+                this,
+                ProbeEvents.Kind.PROGRESS,
+                "Projection attempt ${variants.position + 1} of ${variants.size} — " +
+                    "${variant.id}: ${variant.varies}",
+            )
             val tls = AapTlsEngine(TlsRole.SERVER, credentials())
             // Wired at the message layer rather than the session layer, so the
             // transcript shows what actually crossed the cable rather than what
             // the state machine believed it had sent.
-            val link = AapLink(transport, tls, wireTrace(record))
+            val link = AapLink(
+                transport,
+                tls,
+                wireTrace(record),
+                controlFlagOnControlChannel = variant.controlFlagOnControlChannel,
+            )
             val projection = handlerFactory(record).also(handlers::set)
             val phoneSession = PhoneSession(
                 link = link,
@@ -117,9 +134,14 @@ public class ProjectionService : Service() {
                 identity = PhoneIdentity(model = Build.MODEL, maker = Build.MANUFACTURER),
                 handlerFactory = projection,
                 listener = logging(record),
+                variant = variant,
             )
             session.set(phoneSession)
-            phoneSession.run()
+            try {
+                phoneSession.run()
+            } finally {
+                variants.record(variant, record.outcome())
+            }
         } catch (e: Throwable) {
             // The interesting failures land here, and on a phone in a car the
             // log is the only diagnostic anyone will have.
@@ -235,8 +257,14 @@ public class ProjectionService : Service() {
      * acknowledged -- the disagreement is the bug.
      */
     private fun wireTrace(record: SessionTrace): AapLink.Listener = object : AapLink.Listener {
-        override fun onSend(channel: Int, messageId: Int, size: Int, encrypted: Boolean) {
-            record.sent(channel, messageId, size, encrypted)
+        override fun onSend(
+            channel: Int,
+            messageId: Int,
+            size: Int,
+            encrypted: Boolean,
+            control: Boolean,
+        ) {
+            record.sent(channel, messageId, size, encrypted, control)
         }
 
         override fun onReceive(message: org.openaap.core.IncomingMessage) {
@@ -301,12 +329,14 @@ public class ProjectionService : Service() {
             Log.i(TAG, "protocol $major.$minor agreed")
             event(ProbeEvents.Kind.PROGRESS, "Protocol $major.$minor agreed.")
             record.milestone("protocol $major.$minor agreed")
+            record.reached(SessionTrace.Reached.VERSION)
         }
 
         override fun onHandshakeComplete(protocol: String?, cipherSuite: String?) {
             Log.i(TAG, "TLS established: $protocol / $cipherSuite")
             event(ProbeEvents.Kind.PROGRESS, "TLS established: $protocol / $cipherSuite")
             record.milestone("TLS established: $protocol / $cipherSuite")
+            record.reached(SessionTrace.Reached.TLS)
         }
 
         override fun onAuthenticated() {
@@ -320,7 +350,17 @@ public class ProjectionService : Service() {
                 "Car accepted our certificate. Switching to encrypted framing and asking what it can do.",
             )
             record.milestone("car accepted our certificate; framing is encrypted from here")
+            record.reached(SessionTrace.Reached.AUTHENTICATED)
             updateNotification(getString(R.string.projection_active))
+        }
+
+        override fun onListening() {
+            Log.i(TAG, "listening; this variant does not open the discovery exchange")
+            event(
+                ProbeEvents.Kind.PROGRESS,
+                "Staying quiet on purpose to see whether the car leads the exchange.",
+            )
+            record.milestone("listening: this variant never asks")
         }
 
         override fun onDiscovered(response: DiscoveryResponse, channels: List<ResolvedChannel>) {
@@ -346,6 +386,7 @@ public class ProjectionService : Service() {
             Log.i(TAG, "channel ${channel.id} (${channel.kind}) open")
             event(ProbeEvents.Kind.PROGRESS, "Channel ${channel.id} (${channel.kind}) opened.")
             record.milestone("ch${channel.id} (${channel.kind}) opened")
+            record.reached(SessionTrace.Reached.CHANNEL_OPEN)
         }
 
         override fun onChannelRefused(channel: ResolvedChannel, result: ResultCode) {

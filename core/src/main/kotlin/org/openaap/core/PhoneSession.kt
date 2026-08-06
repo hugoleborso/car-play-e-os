@@ -87,6 +87,12 @@ public interface SessionListener {
     public fun onVersionAgreed(major: Int, minor: Int) {}
     public fun onHandshakeComplete(protocol: String?, cipherSuite: String?) {}
     public fun onAuthenticated() {}
+
+    /**
+     * The phone has chosen not to open the discovery exchange and is waiting to
+     * be led. Only a listen-only [SessionVariant] produces this.
+     */
+    public fun onListening() {}
     public fun onDiscovered(response: DiscoveryResponse, channels: List<ResolvedChannel>) {}
     public fun onChannelOpened(channel: ResolvedChannel) {}
     public fun onChannelRefused(channel: ResolvedChannel, result: ResultCode) {}
@@ -116,6 +122,15 @@ public class PhoneSession(
     private val identity: PhoneIdentity,
     private val handlerFactory: ServiceHandlerFactory,
     private val listener: SessionListener = SessionListener.NONE,
+    /**
+     * Which reading of the post-authentication sequence to follow.
+     *
+     * Defaults to the one this implementation believes is right. It is a
+     * parameter because the first real projection attempt died on the frame
+     * immediately after authentication, and the causes cannot be separated by
+     * argument -- see [SessionVariant].
+     */
+    private val variant: SessionVariant = SessionVariant(id = "default", varies = "the default reading"),
 ) {
 
     public enum class State {
@@ -255,11 +270,31 @@ public class PhoneSession(
         }
 
         // This message is the transition. Everything before it was plaintext;
-        // everything after it is ciphertext.
-        link.enableEncryption()
+        // everything after it is ciphertext -- which is the reading the
+        // plaintext variant exists to question.
+        if (variant.encryptImmediately) link.enableEncryption()
         listener.onAuthenticated()
 
         state = State.DISCOVERING
+
+        if (variant.discovery == SessionVariant.Discovery.NONE) {
+            // Deliberately silent. The session stays in DISCOVERING and simply
+            // reads, so the transcript records whether the head unit leads the
+            // exchange itself. That is a measurement of the one step whose
+            // direction the public record disagrees about, and it is worth more
+            // than another guess at the request's contents.
+            listener.onListening()
+            return
+        }
+
+        if (variant.quietMillisBeforeDiscovery > 0) {
+            // Runs on the session thread, which is the read loop. Sleeping here
+            // stops us reading too, which is the point: the variant is testing
+            // a phone that says nothing for a moment, not one that is merely
+            // slow to speak while still draining the link.
+            runCatching { Thread.sleep(variant.quietMillisBeforeDiscovery) }
+        }
+
         link.send(
             Messages.CONTROL_CHANNEL,
             Messages.DISCOVERY_REQUEST,

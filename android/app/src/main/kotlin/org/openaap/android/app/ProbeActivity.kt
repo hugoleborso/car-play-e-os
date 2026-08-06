@@ -139,6 +139,7 @@ public class ProbeActivity : Activity() {
         statusCard(records, events)
 
         diagnostics()
+        variantMatrix()
         projectionReport()
         if (events.isNotEmpty()) eventLog(events)
         if (records.isEmpty()) instructions()
@@ -230,6 +231,59 @@ public class ProbeActivity : Activity() {
             }
         )
         container.addView(card, marginParams(top = 8))
+    }
+
+    /**
+     * How the projection variants have fared so far.
+     *
+     * Above the session report on purpose: the comparison across attempts is
+     * what tells someone whether to keep unplugging and replugging, and the
+     * single most recent transcript is the detail behind it.
+     */
+    private fun variantMatrix() {
+        val runner = VariantRunner(this)
+        val summary = runner.summary()
+        val pending = runner.next()
+        if (summary == null && pending == null) return
+
+        heading(getString(R.string.variant_heading))
+        val card = card()
+        card.addView(
+            TextView(this).apply {
+                text = if (pending == null) {
+                    getString(R.string.variant_complete)
+                } else {
+                    getString(
+                        R.string.variant_next,
+                        runner.position + 1,
+                        runner.size,
+                        pending.id,
+                        pending.varies,
+                    )
+                }
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(ACCENT_NEUTRAL)
+            }
+        )
+        container.addView(card, marginParams(bottom = 8))
+
+        summary ?: return
+        container.addView(
+            ScrollView(this).apply {
+                setBackgroundColor(surfaceColour())
+                addView(
+                    TextView(this@ProbeActivity).apply {
+                        text = summary
+                        setTypeface(Typeface.MONOSPACE)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 9.5f)
+                        setPadding(dp(12), dp(12), dp(12), dp(12))
+                        setHorizontallyScrolling(true)
+                    }
+                )
+            },
+            LinearLayout.LayoutParams(MATCH_PARENT, dp(240)).apply { topMargin = dp(4) },
+        )
     }
 
     /**
@@ -485,7 +539,8 @@ public class ProbeActivity : Activity() {
         // worth receiving.
         if (records.isNotEmpty() ||
             ProbeEvents.all(this).isNotEmpty() ||
-            SessionTrace(this).reportFile.isFile
+            SessionTrace(this).reportFile.isFile ||
+            VariantRunner(this).summaryFile.isFile
         ) {
             row.addView(
                 Button(this).apply {
@@ -499,6 +554,7 @@ public class ProbeActivity : Activity() {
                 setText(R.string.probe_restart)
                 setOnClickListener {
                     runner.reset()
+                    VariantRunner(this@ProbeActivity).reset()
                     ProbeEvents.clear(this@ProbeActivity)
                     // Without this the button looks dead when there was nothing
                     // to clear, which is exactly when someone presses it.
@@ -544,7 +600,12 @@ public class ProbeActivity : Activity() {
         // summary attached and the raw records -- the ones that could confirm
         // it -- stayed on the phone. A share that silently drops the evidence
         // is worse than no share, because it looks complete.
-        val attachments = listOf(file, runner.recordsFile, SessionTrace(this).reportFile)
+        val attachments = listOf(
+            file,
+            runner.recordsFile,
+            SessionTrace(this).reportFile,
+            VariantRunner(this).summaryFile,
+        )
             .filter { it.isFile }
             .mapNotNull { candidate ->
                 runCatching { FileProvider.getUriForFile(this, "$packageName.reports", candidate) }

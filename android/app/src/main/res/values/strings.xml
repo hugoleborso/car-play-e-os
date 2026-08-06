@@ -95,4 +95,7 @@
     <string name="mode_switch_to_project">Switch to projecting</string>
     <string name="mode_switch_to_probe">Switch to measuring</string>
     <string name="projection_report_heading">Last projection session</string>
+    <string name="variant_heading">Projection attempts</string>
+    <string name="variant_next">Next connection: %1$d of %2$d — %3$s (%4$s)</string>
+    <string name="variant_complete">Every variant has been tried. Share the report.</string>
 </resources>

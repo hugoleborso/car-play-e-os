@@ -91,4 +91,7 @@
     <string name="mode_switch_to_project">Passer en projection</string>
     <string name="mode_switch_to_probe">Passer en mesure</string>
     <string name="projection_report_heading">Dernière session de projection</string>
+    <string name="variant_heading">Tentatives de projection</string>
+    <string name="variant_next">Prochain branchement : %1$d sur %2$d — %3$s (%4$s)</string>
+    <string name="variant_complete">Toutes les variantes ont été essayées. Partagez le rapport.</string>
 </resources>

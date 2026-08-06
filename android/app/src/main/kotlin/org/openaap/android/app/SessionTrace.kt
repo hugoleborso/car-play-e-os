@@ -81,6 +81,35 @@ public class SessionTrace(private val context: Context) {
     private var outcome: String = "session did not report an ending"
     private var succeeded = false
 
+    /**
+     * The furthest point the session reached, in the order it can reach them.
+     *
+     * Kept as an ordinal rather than derived from the transcript afterwards,
+     * because "how far did it get" is the whole result of a variant run and
+     * inferring it by pattern-matching log lines would break the first time a
+     * message is reworded.
+     */
+    private var furthest = Reached.NOTHING
+
+    /** Whether the head unit said anything at all. */
+    private var heardFromCar = false
+
+    /** How far a session got, in order. */
+    public enum class Reached {
+        NOTHING,
+        VERSION,
+        TLS,
+        AUTHENTICATED,
+        ASKED_DISCOVERY,
+        DISCOVERED,
+        CHANNEL_OPEN,
+        STREAMING,
+    }
+
+    private fun reach(point: Reached) {
+        if (point.ordinal > furthest.ordinal) furthest = point
+    }
+
     // ---------------------------------------------------------------- capture
 
     @Synchronized
@@ -90,6 +119,11 @@ public class SessionTrace(private val context: Context) {
     }
 
     public fun milestone(text: String): Unit = add(Kind.MILESTONE, text)
+
+    /** Marks progress through the sequence. Separate from the prose milestone. */
+    public fun reached(point: Reached) {
+        reach(point)
+    }
 
     public fun fact(text: String): Unit = add(Kind.FACT, text)
 
@@ -102,28 +136,37 @@ public class SessionTrace(private val context: Context) {
      * rather than the channel, because a video channel also carries setup and
      * focus traffic that is very much worth seeing individually.
      */
-    public fun sent(channel: Int, messageId: Int, size: Int, encrypted: Boolean) {
+    public fun sent(channel: Int, messageId: Int, size: Int, encrypted: Boolean, control: Boolean) {
         if (isMediaPayload(messageId)) {
+            reach(Reached.STREAMING)
             mediaMessages.incrementAndGet()
             mediaBytes.addAndGet(size.toLong())
             return
         }
+        if (messageId == Messages.DISCOVERY_REQUEST) reach(Reached.ASKED_DISCOVERY)
         add(
             Kind.SENT,
             "ch$channel ${Messages.describe(channel, messageId)} ${size}B" +
-                (if (encrypted) " encrypted" else " plaintext"),
+                (if (encrypted) " enc" else " plain") +
+                (if (control) " CONTROL" else ""),
         )
     }
 
     public fun received(message: IncomingMessage) {
+        heardFromCar = true
         if (message.messageId == Messages.MEDIA_ACK) {
             mediaAcks.incrementAndGet()
             return
         }
+        // The head unit's own flags, recorded verbatim. Whether it sets CONTROL
+        // on channel 0 is the fact that settles whether we should -- and it was
+        // being decoded and thrown away.
         add(
             Kind.RECEIVED,
             "ch${message.channel} ${Messages.describe(message.channel, message.messageId)} " +
-                "${message.body.size}B" + (if (message.wasEncrypted) " encrypted" else " plaintext"),
+                "${message.body.size}B" +
+                (if (message.wasEncrypted) " enc" else " plain") +
+                (if (message.hadControlFlag) " CONTROL" else ""),
         )
     }
 
@@ -141,6 +184,7 @@ public class SessionTrace(private val context: Context) {
      * in one message and is otherwise discarded.
      */
     public fun discovered(response: DiscoveryResponse, channels: List<ResolvedChannel>) {
+        reach(Reached.DISCOVERED)
         fact("head unit label   : ${response.unitLabel}")
         fact("head unit maker   : ${response.unitMaker}")
         fact("head unit model   : ${response.unitModel}")
@@ -319,6 +363,18 @@ public class SessionTrace(private val context: Context) {
         Kind.FAULT -> "!!"
         Kind.FACT -> "  "
     }
+
+    /** What this session achieved, for the variant matrix. */
+    public fun outcome(): VariantRunner.Outcome = VariantRunner.Outcome(
+        milestone = furthest.name,
+        fault = outcome.takeIf { !succeeded },
+        durationMillis = System.currentTimeMillis() - startedAt,
+        streamed = mediaMessages.get() > 0,
+        // "Never spoke" is about the head unit, not about us. A variant that
+        // deliberately stays silent still counts as measured if the car said
+        // anything at all.
+        reachedNothing = !heardFromCar,
+    )
 
     private companion object {
         const val TAG = "openaap.trace"
