@@ -66,7 +66,7 @@ public class ProbeRunner(private val context: Context) {
 
     /** Starts a fresh run, discarding the previous one. */
     public fun reset() {
-        preferences.edit().putInt(KEY_POSITION, 0).apply()
+        preferences.edit().putInt(KEY_POSITION, 0).putInt(KEY_ABORTS, 0).apply()
         runCatching { reportFile.delete() }
         runCatching { recordsFile.delete() }
         context.sendBroadcast(Intent(ACTION_PROBE_UPDATED).setPackage(context.packageName))
@@ -92,10 +92,48 @@ public class ProbeRunner(private val context: Context) {
             identity = PhoneIdentity(model = Build.MODEL, maker = Build.MANUFACTURER),
         ).run(transport)
 
+        // A connection where the head unit never spoke measured nothing about
+        // this identity, so it must not consume it.
+        //
+        // This was wrong in the first field run and it cost four of nine
+        // results. A head unit re-attaches the accessory after a session ends,
+        // and the re-attach arrives before it is ready to talk, so every other
+        // connection died on the first read. Advancing regardless made those
+        // land against whichever identity was next in line, and the report then
+        // showed NO_CONTACT beside "expired" and "own-ca" as though the car had
+        // said something about them. It had not. Perfect alternation between
+        // NO_CONTACT and a verdict is the signature of that bug, and it reads
+        // exactly like a finding.
+        //
+        // Retrying is bounded, because a genuinely dead link -- wrong cable, no
+        // App-Connect -- would otherwise sit on identity one forever and never
+        // produce the report that says so.
+        if (result.stage == HandshakeProbe.Stage.NO_CONTACT) {
+            val aborts = preferences.getInt(KEY_ABORTS, 0) + 1
+            if (aborts < MAX_ABORTS) {
+                preferences.edit().putInt(KEY_ABORTS, aborts).apply()
+                Log.i(TAG, "head unit never spoke; retrying ${probe.id} (attempt ${aborts + 1})")
+                ProbeEvents.record(
+                    context,
+                    ProbeEvents.Kind.PROGRESS,
+                    "The car re-attached before it was ready to talk. Retrying ${probe.id} " +
+                        "(attempt ${aborts + 1} of $MAX_ABORTS) — no identity was used up.",
+                )
+                context.sendBroadcast(Intent(ACTION_PROBE_UPDATED).setPackage(context.packageName))
+                return result
+            }
+            ProbeEvents.record(
+                context,
+                ProbeEvents.Kind.ATTENTION,
+                "The car stayed silent through $MAX_ABORTS attempts at ${probe.id}. Recording it as " +
+                    "no contact and moving on.",
+            )
+        }
+
         // Advance before writing. If rendering the report throws, the next
         // connection should still move on rather than retry the same identity
         // forever and never finish the matrix.
-        preferences.edit().putInt(KEY_POSITION, index + 1).apply()
+        preferences.edit().putInt(KEY_POSITION, index + 1).putInt(KEY_ABORTS, 0).apply()
 
         appendRecord(index, probe, result)
         writeReport()
@@ -176,6 +214,10 @@ public class ProbeRunner(private val context: Context) {
         private const val TAG = "openaap.probe"
         private const val PREFERENCES = "probe"
         private const val KEY_POSITION = "position"
+        private const val KEY_ABORTS = "aborts"
+
+        /** How many silent connections an identity gets before we give up on it. */
+        private const val MAX_ABORTS = 3
 
         /** Sent whenever a probe finishes, so the screen can refresh while in the car. */
         public const val ACTION_PROBE_UPDATED: String = "org.openaap.projection.PROBE_UPDATED"

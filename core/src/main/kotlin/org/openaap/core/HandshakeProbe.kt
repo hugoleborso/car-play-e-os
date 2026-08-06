@@ -146,9 +146,36 @@ public class HandshakeProbe(
                     }
 
                     Messages.AUTH_SUCCEEDED -> {
-                        val result = runCatching { AuthSucceeded.parseFrom(message.body) }.getOrNull()
+                        val parsed = runCatching { AuthSucceeded.parseFrom(message.body) }
+                        if (parsed.isFailure) {
+                            // Never infer acceptance from a message we could not
+                            // read. This previously defaulted to RESULT_OK,
+                            // which meant an unparseable body -- the exact shape
+                            // an unexpected implementation would produce --
+                            // rendered as the headline result of the project.
+                            // A false AUTHENTICATED is far more costly than a
+                            // missing one: it is the claim everyone would check.
+                            transcript += "head unit sent 0x0004 with a body we could not parse " +
+                                "(${message.body.size} bytes): ${parsed.exceptionOrNull()?.message}"
+                            return@run finish(
+                                stage,
+                                null,
+                                "head unit sent an unparseable verdict; not treating this as acceptance",
+                                headUnitProtocol,
+                                tls,
+                                rounds,
+                                transcript,
+                            )
+                        }
+                        val result = parsed.getOrNull()
+                        // An empty body is legitimate: the message id is itself
+                        // the signal, and the result field is optional.
                         val code = result?.takeIf { it.hasResult() }?.result ?: ResultCode.RESULT_OK
-                        transcript += "head unit verdict: $code"
+                        transcript += if (result?.hasResult() == true) {
+                            "head unit verdict: $code"
+                        } else {
+                            "head unit sent an empty verdict body; reading the message itself as acceptance"
+                        }
                         if (code == ResultCode.RESULT_OK) {
                             stage = Stage.AUTHENTICATED
                             // The question is answered. Going further would only
