@@ -6,6 +6,7 @@
 package org.openaap.core
 
 import org.openaap.crypto.AapTlsEngine
+import org.openaap.protocol.AuthVerdict
 import org.openaap.protocol.Messages
 import org.openaap.protocol.VersionExchange
 import org.openaap.protocol.proto.AuthSucceeded
@@ -264,9 +265,15 @@ public class PhoneSession(
         if (state != State.AWAITING_AUTH) {
             throw ProtocolViolation("auth result arrived in state $state")
         }
-        val result = AuthSucceeded.parseFrom(message.body)
-        if (result.hasResult() && result.result != ResultCode.RESULT_OK) {
-            throw ProtocolViolation("head unit rejected the session: ${result.result}")
+        // Raw varint, not the generated enum. See AuthVerdict for why: a proto2
+        // enum hides any value outside its own members, and treating that as
+        // "no objection" turned a rejection into an acceptance for the whole
+        // first phase of this project.
+        val status = AuthVerdict.statusOf(message.body)
+        if (status != AuthVerdict.OK) {
+            throw ProtocolViolation(
+                "head unit did not accept the session: ${AuthVerdict.describe(status)}"
+            )
         }
 
         // This message is the transition. Everything before it was plaintext;

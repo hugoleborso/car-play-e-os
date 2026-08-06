@@ -3,77 +3,82 @@
 This is the document that decides whether the project succeeds. Everything else
 is engineering with known answers.
 
-## Answered, on 6 August 2026
+## Retracted, on 6 August 2026
 
-**A production VW MIB2 accepted all nine generated identities, including an
-expired one.** Measured with the probe in this repository, on a Fairphone 6
-running /e/OS, in a 2017 Polo. The raw records are in
-[`testdata/field/`](../testdata/field/).
+**An earlier version of this document claimed that a production VW MIB2
+accepted all nine generated identities. That claim was wrong, and the error was
+ours.** It is retracted in full. The corrected reading is below; the retracted
+text is preserved in the git history of this file rather than deleted, because a
+project whose method is "stop guessing" cannot quietly tidy away the guess it
+got wrong.
 
-| Identity | What it varies | Result |
-| --- | --- | --- |
-| `self-signed-v1` | the structure real endpoints use | AUTHENTICATED |
-| `self-signed-v3` | v3 with extensions | AUTHENTICATED |
-| `own-ca-v1` | a real two-level chain to our own CA | AUTHENTICATED |
-| `authority-name-match` | authority pinned by name rather than key | AUTHENTICATED |
-| `expired` | **validity window already past** | AUTHENTICATED |
-| `not-yet-valid` | validity window not yet begun | AUTHENTICATED |
-| `long-validity` | decades, as real certificates use | AUTHENTICATED |
-| `rsa-4096` | key size above the usual 2048 | AUTHENTICATED |
-| `ec-p256` | elliptic curve rather than RSA | AUTHENTICATED |
+### What the head unit actually said
 
-The finding does not rest on decoding the head unit's verdict, and that matters,
-because the verdict body was empty in all nine runs. It rests on something
-harder to misread: **the head unit's bytes never changed.**
+Every session, including all nine probe runs, ended with the head unit sending
+message `0x0004` with this body:
 
 ```
-                        r1 in   r1 out   r2 in   r2 out
-self-signed-v1            517     1141     126       51
-self-signed-v3            517     1243     126       51
-own-ca-v1                 517     1913     126       51
-authority-name-match      517     2105     126       51
-expired                   517     1142     126       51
-ec-p256                   517      560     126       51
+08 fd ff ff ff ff ff ff ff ff 01
 ```
 
-Our outbound flight ranges from 560 to 2105 bytes, tracking the size and type of
-each certificate — so the identities really did differ and really were sent. The
-head unit's `ClientHello` is 517 bytes every time and its second flight is 126
-bytes every time. Nine different certificates, one of them expired, one signed
-by an authority we invented, produced **byte-identical** responses. There is no
-certificate-dependent branch in this head unit at this stage of the session.
+That is field 1, wire type 0, varint — and the varint is the sign-extended
+64-bit encoding of **-3**. The head unit answered every generated certificate
+with `status = -3`, then tore down USB accessory mode a few seconds later. It
+was refusing us the whole time.
 
-Two further facts fall out of the same data:
+### Why we read a refusal as an acceptance
 
-- **No mutual TLS.** We set `wantClientAuth`, so a `CertificateRequest` went out
-  in every run. 126 bytes is `ClientKeyExchange` + `ChangeCipherSpec` +
-  `Finished` and leaves no room for a certificate. The head unit never sent one.
-- **A real TLS stack, not a stub.** The elliptic-curve identity negotiated
-  `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` while the rest got
-  `TLS_ECDHE_RSA_…`. It adapts correctly to what it is offered. It simply does
-  not judge it.
+Our schema declares that field as a proto2 enum with members `RESULT_OK = 0` and
+`RESULT_FAILED = 1`. **Proto2 stores an out-of-range enum value as an unknown
+field**: the bytes survive on the wire, but the generated `hasResult()` reports
+false, exactly as it would for a field the peer never sent. The code then read
+absent as "nothing to object to" and defaulted to OK.
 
-### What this does not establish
+So the report said "empty verdict body" about eleven bytes that contained an
+explicit rejection, and the on-screen result said `AUTHENTICATED` nine times.
 
-**That the session is usable.** The probe stops at the verdict by design.
-Nothing here shows the head unit will then answer a discovery request, open
-channels, or display a frame. That is the next measurement, and it is what
-projection mode exists to take.
+A closed enum cannot represent what a peer actually said. In a protocol
+reconstructed from observation, values outside our enumeration are not an edge
+case — they are the ordinary way of finding out the enumeration is incomplete.
+The verdict is now read as a raw varint (`AuthVerdict`), and *absent* is kept
+distinct from *zero*, because one is a head unit that said nothing and the other
+is one that said OK. `UnknownEnumTest` pins the behaviour with the exact eleven
+bytes the car sent.
 
-**Anything about head units in general.** This is one unit in one car. "MIB2
-does not validate" is not supported by n=1; "this MIB2 did not validate" is.
-The 2021 report below, from a 2019 Seat Ateca in the same corporate family,
-says the opposite — and both can be true of different units, different model
-years, or different firmware.
+### What survives, and what does not
 
-**That the empty verdict body means `RESULT_OK`.** It is read as acceptance
-because the message id is itself the signal and the `result` field is optional.
-An implementation that meant something else by it would be indistinguishable
-here. The byte-level invariance above is the claim that survives either reading.
+**Does not survive:** any claim that this head unit accepts generated
+certificates, that it skips date checks, or that it validates nothing. All of
+that rested on reading `-3` as `0`.
 
-The rest of this document was written before that measurement. It is kept as
-written, because the reasoning that led to a wrong prediction is worth more than
-a document quietly edited to have been right. The prediction was `unknown_ca`.
+**Survives, because it never depended on the verdict:** the head unit completes
+a TLS 1.2 handshake with a certificate we generated, negotiating
+`TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256` and adapting to `ECDHE_ECDSA` for an
+elliptic-curve identity. It presents **no certificate of its own** despite our
+`CertificateRequest`. It speaks AAP protocol 1.0 and identifies over USB as
+`Android / Android Auto v1.0`. Its two inbound handshake flights are 517 and 126
+bytes regardless of what we present.
+
+**Newly established:** the refusal code is `-3`, and it is identical across nine
+certificates that varied structure, chain depth, validity window, key size and
+key algorithm. That invariance now reads the other way round: the head unit's
+answer does not depend on the certificate *because it refuses all of them the
+same way*. Whether it would accept a Google-signed one is untested — we have
+never had one to present.
+
+### The methodological point, kept deliberately
+
+The retracted claim was hedged in the right places and still wrong. It said the
+finding did not rest on decoding the verdict but on the head unit's bytes never
+changing. That argument was sound as far as it went and did not go far enough:
+byte-invariance distinguishes "the certificate is not what decides" from
+nothing else. It cannot tell *accepts everything* from *refuses everything*, and
+the text asserted it could.
+
+The lesson is not "hedge harder". It is that a decoder which cannot represent
+what the peer said will quietly substitute something it can, and no amount of
+care in the surrounding prose detects that. What detected it was dumping the raw
+bytes and decoding them without reference to our own schema.
 
 ## The short version
 

@@ -11,7 +11,9 @@ import org.openaap.crypto.CredentialProvider
 import org.openaap.crypto.TlsRole
 import org.openaap.crypto.probe.CredentialProbe
 import org.openaap.crypto.probe.TlsAlert
+import org.openaap.protocol.AuthVerdict
 import org.openaap.protocol.Messages
+import org.openaap.protocol.ProtoScan
 import org.openaap.protocol.VersionExchange
 import org.openaap.protocol.proto.AuthSucceeded
 import org.openaap.protocol.proto.ResultCode
@@ -146,37 +148,18 @@ public class HandshakeProbe(
                     }
 
                     Messages.AUTH_SUCCEEDED -> {
-                        val parsed = runCatching { AuthSucceeded.parseFrom(message.body) }
-                        if (parsed.isFailure) {
-                            // Never infer acceptance from a message we could not
-                            // read. This previously defaulted to RESULT_OK,
-                            // which meant an unparseable body -- the exact shape
-                            // an unexpected implementation would produce --
-                            // rendered as the headline result of the project.
-                            // A false AUTHENTICATED is far more costly than a
-                            // missing one: it is the claim everyone would check.
-                            transcript += "head unit sent 0x0004 with a body we could not parse " +
-                                "(${message.body.size} bytes): ${parsed.exceptionOrNull()?.message}"
-                            return@run finish(
-                                stage,
-                                null,
-                                "head unit sent an unparseable verdict; not treating this as acceptance",
-                                headUnitProtocol,
-                                tls,
-                                rounds,
-                                transcript,
-                            )
-                        }
-                        val result = parsed.getOrNull()
-                        // An empty body is legitimate: the message id is itself
-                        // the signal, and the result field is optional.
-                        val code = result?.takeIf { it.hasResult() }?.result ?: ResultCode.RESULT_OK
-                        transcript += if (result?.hasResult() == true) {
-                            "head unit verdict: $code"
-                        } else {
-                            "head unit sent an empty verdict body; reading the message itself as acceptance"
-                        }
-                        if (code == ResultCode.RESULT_OK) {
+                        // Read as a raw varint, never through the generated
+                        // enum. A closed proto2 enum reports an out-of-range
+                        // value as an absent field, and reading absent as
+                        // "nothing to object to" is exactly how this project
+                        // published a wrong result: a head unit answering -3
+                        // was recorded as having accepted us, nine times over.
+                        // See AuthVerdict.
+                        val status = AuthVerdict.statusOf(message.body)
+                        transcript += "head unit verdict: ${AuthVerdict.describe(status)}" +
+                            " [raw body ${ProtoScan.hex(message.body, 32)}]"
+
+                        if (status == AuthVerdict.OK) {
                             stage = Stage.AUTHENTICATED
                             // The question is answered. Going further would only
                             // risk confusing the outcome with an unrelated fault.
@@ -184,11 +167,11 @@ public class HandshakeProbe(
                                 stage, null, null, headUnitProtocol, tls, rounds, transcript
                             )
                         }
-                        transcript += "head unit refused the session after a completed handshake"
                         return@run finish(
                             stage,
                             null,
-                            "head unit returned $code after the TLS handshake succeeded",
+                            "head unit refused the session after a completed TLS handshake: " +
+                                AuthVerdict.describe(status),
                             headUnitProtocol,
                             tls,
                             rounds,
