@@ -43,16 +43,17 @@ android {
         minSdk = 29
         targetSdk = 35
         versionCode = buildNumber
-        // 0.4.0: the projection failure became an experiment. Eight variants of
-        // what the phone does after the certificate is accepted, one per
-        // connection, the way the credential matrix works.
+        // 0.5.0: the first variant run settled the control-flag question and
+        // opened a harder one, so the matrix turns from varying what the phone
+        // says to observing what the car does. Message bodies are now decoded
+        // without reference to our schema, and every session is kept.
         //
-        // 0.3.0 was the projection report; 0.2.0 the projection path itself;
-        // 0.1.0 the probe.
+        // 0.4.0 was the variant matrix; 0.3.0 the projection report; 0.2.0 the
+        // projection path; 0.1.0 the probe.
         //
         // Kept a plain literal: the release workflow greps this line, and the
         // revision travels in BuildConfig instead, where nothing has to parse it.
-        versionName = "0.4.0"
+        versionName = "0.5.0"
         buildConfigField("String", "GIT_REVISION", "\"$gitRevision\"")
     }
 

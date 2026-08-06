@@ -93,57 +93,62 @@ public data class SessionVariant(
     public companion object {
 
         /**
-         * The variants, in the order a connection should try them.
+         * The variants still worth spending a connection on.
          *
-         * Ordered by cost of being wrong rather than by likelihood. The
-         * baseline goes first so the report always contains a comparable
-         * reproduction of the known failure; single-change variants follow, so
-         * that any improvement is attributable; combinations come last, where
-         * they can only be read in the light of the singles before them.
+         * ### What the first run settled, and why four variants are gone
+         *
+         * A field run of the original eight separated perfectly on one axis.
+         * Every variant that set the control flag on channel 0 died before TLS
+         * even began, four times out of four, with the head unit's next frame
+         * arriving flagged in a way our decoder reads as ciphertext. Every
+         * variant that did not set it reached at least the discovery request.
+         * The separation was total, so the reading this implementation started
+         * with was right and the flag does not belong on channel 0. Those four
+         * are not kept as regression cases: a variant that is known to break the
+         * session before it starts spends a connection to learn nothing.
+         *
+         * ### What that run opened up
+         *
+         * The listen-only variant reached authentication, sent **nothing at
+         * all**, and the head unit still tore down USB accessory mode 2.3
+         * seconds later. That rules out the content of our discovery request as
+         * the cause — silence fails too. Whatever ends these sessions is either
+         * something the head unit expects from us that we never send, or
+         * something it sends that we never answer.
+         *
+         * So the matrix turns from varying what we say to observing what it
+         * does. Most of what remains is a different amount of patience.
          */
         public fun matrix(): List<SessionVariant> = listOf(
             SessionVariant(
                 id = "baseline",
-                varies = "nothing: reproduces the failure as first observed",
-            ),
-            SessionVariant(
-                id = "control-flag",
-                varies = "sets the control flag on control-channel messages",
-                controlFlagOnControlChannel = true,
-            ),
-            SessionVariant(
-                id = "quiet-first",
-                varies = "waits 1s after authentication before speaking",
-                quietMillisBeforeDiscovery = 1_000,
+                varies = "asks immediately: the reference failure",
             ),
             SessionVariant(
                 id = "listen-only",
-                varies = "never asks; lets the head unit lead the exchange",
+                varies = "says nothing at all, and records everything the car sends",
                 discovery = Discovery.NONE,
-                quietMillisBeforeDiscovery = 0,
             ),
             SessionVariant(
-                id = "plaintext-discovery",
-                varies = "keeps framing in the clear past the auth message",
-                encryptImmediately = false,
-            ),
-            SessionVariant(
-                id = "control-flag-quiet",
-                varies = "control flag after a 1s pause",
-                controlFlagOnControlChannel = true,
+                id = "quiet-1s",
+                varies = "waits 1s, then asks",
                 quietMillisBeforeDiscovery = 1_000,
             ),
             SessionVariant(
-                id = "control-flag-plaintext",
-                varies = "control flag, and framing left in the clear",
-                controlFlagOnControlChannel = true,
+                id = "quiet-3s",
+                varies = "waits 3s, then asks — past the point silence alone died",
+                quietMillisBeforeDiscovery = 3_000,
+            ),
+            SessionVariant(
+                id = "plaintext-discovery",
+                varies = "asks in the clear, never enabling encryption",
                 encryptImmediately = false,
             ),
             SessionVariant(
-                id = "listen-only-control-flag",
-                varies = "stays quiet, and flags what it does send",
-                controlFlagOnControlChannel = true,
+                id = "plaintext-listen",
+                varies = "stays in the clear and stays silent",
                 discovery = Discovery.NONE,
+                encryptImmediately = false,
             ),
         )
     }

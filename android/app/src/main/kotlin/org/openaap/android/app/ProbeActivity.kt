@@ -604,6 +604,7 @@ public class ProbeActivity : Activity() {
             file,
             runner.recordsFile,
             SessionTrace(this).reportFile,
+            SessionTrace(this).archiveFile,
             VariantRunner(this).summaryFile,
         )
             .filter { it.isFile }
