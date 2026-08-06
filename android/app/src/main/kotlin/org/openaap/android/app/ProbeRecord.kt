@@ -31,6 +31,16 @@ public data class ProbeRecord(
     val negotiatedTls: String?,
     val negotiatedCipherSuite: String?,
     val headUnitCertificate: String?,
+    /**
+     * Every step of the exchange, in order.
+     *
+     * This was built by the probe and then thrown away, which was discovered
+     * the only way such things are: the first real result came back and the
+     * one line that would have confirmed it -- the head unit's verdict, and
+     * whether it was stated or inferred from an empty body -- had never been
+     * written to disk. A summary is not evidence. The transcript is.
+     */
+    val transcript: List<String> = emptyList(),
     val timestamp: String,
 ) {
     public val accepted: Boolean get() = stage == HandshakeProbe.Stage.AUTHENTICATED.name
@@ -51,6 +61,7 @@ public data class ProbeRecord(
         put("negotiatedTls", negotiatedTls ?: JSONObject.NULL)
         put("negotiatedCipherSuite", negotiatedCipherSuite ?: JSONObject.NULL)
         put("headUnitCertificate", headUnitCertificate ?: JSONObject.NULL)
+        put("transcript", org.json.JSONArray(transcript))
         put("timestamp", timestamp)
     }.toString()
 
@@ -71,6 +82,9 @@ public data class ProbeRecord(
                 negotiatedTls = json.optStringOrNull("negotiatedTls"),
                 negotiatedCipherSuite = json.optStringOrNull("negotiatedCipherSuite"),
                 headUnitCertificate = json.optStringOrNull("headUnitCertificate"),
+                transcript = json.optJSONArray("transcript")?.let { array ->
+                    (0 until array.length()).map { array.optString(it) }
+                }.orEmpty(),
                 timestamp = json.optString("timestamp"),
             )
         }.getOrNull()

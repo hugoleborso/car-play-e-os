@@ -450,7 +450,19 @@ public class ProbeActivity : Activity() {
     private fun shareReport() {
         val file = runner.reportFile
         val events = ProbeEvents.all(this).joinToString("\n") { "${it.at}  ${it.kind}  ${it.text}" }
-        val intent = Intent(Intent.ACTION_SEND).apply {
+        // Both files, because the first field result came back with only the
+        // summary attached and the raw records -- the ones that could confirm
+        // it -- stayed on the phone. A share that silently drops the evidence
+        // is worse than no share, because it looks complete.
+        val attachments = listOf(file, runner.recordsFile)
+            .filter { it.isFile }
+            .mapNotNull { candidate ->
+                runCatching { FileProvider.getUriForFile(this, "$packageName.reports", candidate) }
+                    .getOrNull()
+            }
+        val intent = Intent(
+            if (attachments.size > 1) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND
+        ).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_SUBJECT, getString(R.string.probe_share_subject))
             putExtra(
@@ -469,10 +481,10 @@ public class ProbeActivity : Activity() {
             )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        if (file.isFile) {
-            runCatching { FileProvider.getUriForFile(this, "$packageName.reports", file) }
-                .getOrNull()
-                ?.let { intent.putExtra(Intent.EXTRA_STREAM, it) }
+        when {
+            attachments.size > 1 ->
+                intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachments))
+            attachments.size == 1 -> intent.putExtra(Intent.EXTRA_STREAM, attachments.single())
         }
         startActivity(Intent.createChooser(intent, getString(R.string.probe_share)))
     }

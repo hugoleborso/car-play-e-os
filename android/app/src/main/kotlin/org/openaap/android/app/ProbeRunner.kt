@@ -160,6 +160,7 @@ public class ProbeRunner(private val context: Context) {
                 "${it.subjectX500Principal.name} | issued by ${it.issuerX500Principal.name} | " +
                     "valid ${it.notBefore}..${it.notAfter} | ${it.publicKey.algorithm} v${it.version}"
             },
+            transcript = result.transcript,
             timestamp = timestamp(),
         )
         runCatching { recordsFile.appendText(record.toJson() + "\n") }
@@ -194,6 +195,16 @@ public class ProbeRunner(private val context: Context) {
                             appendLine("      TLS: $it / ${record.negotiatedCipherSuite ?: "?"}")
                         }
                         record.failure?.takeIf { record.alert == null }?.let { appendLine("      detail: $it") }
+                        // In full, not summarised. A verdict of AUTHENTICATED is
+                        // the strongest claim this project can make, and the
+                        // line that distinguishes a stated verdict from one
+                        // inferred out of an empty body lives here. Anyone
+                        // checking the result -- including me, a week later --
+                        // needs the exchange, not my description of it.
+                        if (record.transcript.isNotEmpty()) {
+                            appendLine("      transcript:")
+                            record.transcript.forEach { appendLine("        $it") }
+                        }
                         appendLine()
                     }
                     results.firstOrNull { it.headUnitCertificate != null }?.let {
