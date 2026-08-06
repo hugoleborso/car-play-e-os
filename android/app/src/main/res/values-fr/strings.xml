@@ -82,4 +82,12 @@
     <string name="diag_open_settings">Ouvrir les paramètres</string>
 
     <string name="events_heading">Ce que le câble a fait</string>
+
+    <!-- Ce que fait la prochaine connexion. -->
+    <string name="mode_probing">Mesure de la voiture</string>
+    <string name="mode_probing_detail">Chaque branchement présente un certificat différent et enregistre la réaction de la voiture. Rien ne s\'affiche sur l\'écran de la voiture.</string>
+    <string name="mode_projecting">Projection vers la voiture</string>
+    <string name="mode_projecting_detail">Le prochain branchement envoie une image sur l\'écran de la voiture. À tenter seulement une fois qu\'on a vu la voiture accepter un certificat qu\'on a généré.</string>
+    <string name="mode_switch_to_project">Passer en projection</string>
+    <string name="mode_switch_to_probe">Passer en mesure</string>
 </resources>

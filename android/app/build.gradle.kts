@@ -3,6 +3,23 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+/**
+ * The commit this APK was built from, so the phone can say which build it is
+ * running.
+ *
+ * versionName is a hand-maintained string that nobody remembers to bump, which
+ * makes it useless for answering "did I install the new one?" -- and getting
+ * that wrong means driving to a car and testing the wrong build. The commit is
+ * not a matter of anyone remembering.
+ *
+ * Falls back to "unknown" rather than failing: a shallow clone, an exported
+ * tarball or a machine without git should still produce a working APK.
+ */
+val gitRevision: String = providers.exec {
+    commandLine("git", "rev-parse", "--short", "HEAD")
+}.standardOutput.asText.map { it.trim() }.orElse("unknown").get()
+    .ifBlank { "unknown" }
+
 android {
     namespace = "org.openaap.android.app"
     compileSdk = 35
@@ -12,7 +29,14 @@ android {
         minSdk = 29
         targetSdk = 35
         versionCode = 1
+        // Kept a plain literal: the release workflow greps this line, and the
+        // revision travels in BuildConfig instead, where nothing has to parse it.
         versionName = "0.1.0"
+        buildConfigField("String", "GIT_REVISION", "\"$gitRevision\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {

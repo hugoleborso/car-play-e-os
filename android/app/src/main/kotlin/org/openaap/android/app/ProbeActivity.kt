@@ -133,7 +133,9 @@ public class ProbeActivity : Activity() {
         val events = ProbeEvents.recent(this)
 
         title(getString(R.string.probe_title))
+        buildStamp()
         paragraph(getString(R.string.probe_intro))
+        modeCard()
         statusCard(records, events)
 
         diagnostics()
@@ -152,6 +154,81 @@ public class ProbeActivity : Activity() {
         }
 
         actions(records)
+    }
+
+    /**
+     * Which build this is, in the one place someone will look before driving
+     * somewhere.
+     *
+     * The version string is hand-maintained and has said 0.1.0 through every
+     * release, so it cannot answer "did the new one install?". The commit can,
+     * and it costs one line on screen. Testing the wrong build in a car park is
+     * a wasted trip that looks exactly like a failed experiment.
+     */
+    private fun buildStamp() = container.addView(
+        TextView(this).apply {
+            text = getString(
+                R.string.probe_build,
+                packageManager.getPackageInfo(packageName, 0).versionName,
+                BuildConfig.GIT_REVISION,
+            )
+            setTypeface(Typeface.MONOSPACE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            alpha = 0.6f
+        },
+        marginParams(top = 2)
+    )
+
+    /**
+     * Chooses what the next connection does: measure, or project.
+     *
+     * On screen rather than behind an `adb` flag, because the whole design
+     * constraint of this app is that the cable is in the car when it matters.
+     * A mode only reachable from a computer is a mode nobody switches at the
+     * moment they want to switch it.
+     *
+     * Measuring stays the default. Projection is worth trying only once a car
+     * has been observed accepting an identity we generate, and until then a
+     * projection session cannot get past its first minute.
+     */
+    private fun modeCard() {
+        val projecting = !ProjectionService.probeMode(this)
+        val card = card()
+        card.addView(
+            TextView(this).apply {
+                text = getString(
+                    if (projecting) R.string.mode_projecting else R.string.mode_probing
+                )
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(if (projecting) ACCENT_GOOD else ACCENT_NEUTRAL)
+            }
+        )
+        card.addView(
+            TextView(this).apply {
+                text = getString(
+                    if (projecting) R.string.mode_projecting_detail else R.string.mode_probing_detail
+                )
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                alpha = 0.8f
+                setPadding(0, dp(4), 0, 0)
+            }
+        )
+        card.addView(
+            Button(this).apply {
+                setText(if (projecting) R.string.mode_switch_to_probe else R.string.mode_switch_to_project)
+                setOnClickListener {
+                    ProjectionService.setProbeMode(this@ProbeActivity, projecting)
+                    ProbeEvents.record(
+                        this@ProbeActivity,
+                        ProbeEvents.Kind.PROGRESS,
+                        if (projecting) "Switched to measuring." else "Switched to projecting.",
+                    )
+                    render()
+                }
+            }
+        )
+        container.addView(card, marginParams(top = 8))
     }
 
     private fun statusCard(records: List<ProbeRecord>, events: List<ProbeEvents.Event>) {
@@ -426,13 +503,29 @@ public class ProbeActivity : Activity() {
     private fun shareReport() {
         val file = runner.reportFile
         val events = ProbeEvents.all(this).joinToString("\n") { "${it.at}  ${it.kind}  ${it.text}" }
-        val intent = Intent(Intent.ACTION_SEND).apply {
+        // Both files, because the first field result came back with only the
+        // summary attached and the raw records -- the ones that could confirm
+        // it -- stayed on the phone. A share that silently drops the evidence
+        // is worse than no share, because it looks complete.
+        val attachments = listOf(file, runner.recordsFile)
+            .filter { it.isFile }
+            .mapNotNull { candidate ->
+                runCatching { FileProvider.getUriForFile(this, "$packageName.reports", candidate) }
+                    .getOrNull()
+            }
+        val intent = Intent(
+            if (attachments.size > 1) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND
+        ).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_SUBJECT, getString(R.string.probe_share_subject))
             putExtra(
                 Intent.EXTRA_TEXT,
                 buildString {
                     appendLine(getString(R.string.probe_share_subject))
+                    // Which build produced these numbers. A report from an old
+                    // APK is worse than no report, because it looks like fresh
+                    // evidence and quietly contradicts the current code.
+                    appendLine("build ${BuildConfig.GIT_REVISION} · ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE}")
                     appendLine()
                     appendLine(runCatching { file.readText() }.getOrDefault(""))
                     appendLine("--- events ---")
@@ -441,10 +534,10 @@ public class ProbeActivity : Activity() {
             )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        if (file.isFile) {
-            runCatching { FileProvider.getUriForFile(this, "$packageName.reports", file) }
-                .getOrNull()
-                ?.let { intent.putExtra(Intent.EXTRA_STREAM, it) }
+        when {
+            attachments.size > 1 ->
+                intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachments))
+            attachments.size == 1 -> intent.putExtra(Intent.EXTRA_STREAM, attachments.single())
         }
         startActivity(Intent.createChooser(intent, getString(R.string.probe_share)))
     }

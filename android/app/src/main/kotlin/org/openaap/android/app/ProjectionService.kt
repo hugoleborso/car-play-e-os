@@ -19,13 +19,12 @@ import android.os.IBinder
 import android.util.Log
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
+import org.openaap.android.projection.ProjectionHandlers
 import org.openaap.android.usb.UsbAccessoryTransport
 import org.openaap.core.AapLink
 import org.openaap.core.PhoneIdentity
 import org.openaap.core.PhoneSession
 import org.openaap.core.ResolvedChannel
-import org.openaap.core.ServiceHandler
-import org.openaap.core.ServiceHandlerFactory
 import org.openaap.core.SessionListener
 import org.openaap.crypto.AapTlsEngine
 import org.openaap.crypto.CredentialProvider
@@ -33,6 +32,7 @@ import org.openaap.crypto.StaticCredentialProvider
 import org.openaap.crypto.TestPki
 import org.openaap.crypto.TlsRole
 import org.openaap.protocol.proto.DiscoveryResponse
+import org.openaap.services.MediaService
 import org.openaap.protocol.proto.ResultCode
 
 /**
@@ -49,6 +49,7 @@ import org.openaap.protocol.proto.ResultCode
 public class ProjectionService : Service() {
 
     private val session = AtomicReference<PhoneSession?>(null)
+    private val handlers = AtomicReference<ProjectionHandlers?>(null)
     private var worker: Thread? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -103,11 +104,12 @@ public class ProjectionService : Service() {
             }
             val tls = AapTlsEngine(TlsRole.SERVER, credentials())
             val link = AapLink(transport, tls)
+            val projection = handlerFactory().also(handlers::set)
             val phoneSession = PhoneSession(
                 link = link,
                 tls = tls,
                 identity = PhoneIdentity(model = Build.MODEL, maker = Build.MANUFACTURER),
-                handlerFactory = handlerFactory(),
+                handlerFactory = projection,
                 listener = logging(),
             )
             session.set(phoneSession)
@@ -123,6 +125,10 @@ public class ProjectionService : Service() {
             )
         } finally {
             session.set(null)
+            // Before the transport: the encoder holds a hardware codec that the
+            // next session cannot acquire until it is released, and a cable
+            // pulled mid-drive is followed by a reconnection within seconds.
+            handlers.getAndSet(null)?.close()
             runCatching { transport.close() }
             stopSelf()
         }
@@ -140,8 +146,7 @@ public class ProjectionService : Service() {
      * adb shell am startservice -n org.openaap.projection/.ProjectionService --ez probe false
      * ```
      */
-    private fun probeMode(): Boolean =
-        getSharedPreferences("openaap", Context.MODE_PRIVATE).getBoolean("probe", true)
+    private fun probeMode(): Boolean = probeMode(this)
 
     private fun runProbe(transport: org.openaap.transport.Transport) {
         val runner = ProbeRunner(this)
@@ -198,18 +203,45 @@ public class ProjectionService : Service() {
         ),
     )
 
-    private fun handlerFactory(): ServiceHandlerFactory = ServiceHandlerFactory { channel ->
-        // The media and input handlers land here as the projection module
-        // stabilises. Declining a channel is legitimate and non-fatal, so an
-        // incomplete factory produces a working-but-quiet session rather than a
-        // failed one -- which is the right behaviour while bringing this up.
-        object : ServiceHandler {
-            override val channel: ResolvedChannel = channel
-            override fun onMessage(link: AapLink, message: org.openaap.core.IncomingMessage) {
-                Log.v(TAG, "unhandled ${message} on ${channel.kind}")
+    /**
+     * Builds the handlers that actually project.
+     *
+     * Held on the service rather than created inline because video and input
+     * are separate channels describing one screen, and something has to outlive
+     * both to keep them agreeing about geometry. It also has to be torn down
+     * when the cable comes out: an encoder left running holds a hardware codec
+     * that the next session then cannot acquire.
+     */
+    private fun handlerFactory(): ProjectionHandlers = ProjectionHandlers(
+        context = this,
+        listener = object : MediaService.Listener {
+            override fun onStarted(channel: ResolvedChannel, format: Int) {
+                Log.i(TAG, "streaming to channel ${channel.id}")
+                ProbeEvents.record(
+                    this@ProjectionService,
+                    ProbeEvents.Kind.PROGRESS,
+                    "Projecting to the car screen.",
+                )
+                updateNotification(getString(R.string.projection_active))
             }
-        }
-    }
+
+            override fun onStopped(channel: ResolvedChannel, reason: String) {
+                Log.i(TAG, "channel ${channel.id} stopped: $reason")
+                ProbeEvents.record(
+                    this@ProjectionService,
+                    ProbeEvents.Kind.ATTENTION,
+                    "The car stopped the ${channel.kind} channel: $reason",
+                )
+            }
+
+            override fun onCreditExhausted(channel: ResolvedChannel, droppedFrames: Long) {
+                // Worth surfacing rather than only logging: a car that stops
+                // acknowledging shows a frozen picture, and without this the
+                // only symptom is a still image that looks like an encoder bug.
+                Log.w(TAG, "channel ${channel.id} out of credit, dropped $droppedFrames")
+            }
+        },
+    )
 
     private fun logging(): SessionListener = object : SessionListener {
         override fun onVersionAgreed(major: Int, minor: Int) {
@@ -243,6 +275,7 @@ public class ProjectionService : Service() {
     }
 
     override fun onDestroy() {
+        handlers.getAndSet(null)?.close()
         session.get()?.requestTeardown()
         worker?.interrupt()
         super.onDestroy()
@@ -284,6 +317,25 @@ public class ProjectionService : Service() {
 
     public companion object {
         private const val TAG = "openaap.service"
+        private const val PREFERENCES = "openaap"
+        private const val KEY_PROBE = "probe"
+
+        /**
+         * Whether the next connection measures rather than projects.
+         *
+         * Defaults to measuring. Until a head unit is known to accept an
+         * identity we are allowed to generate, a projection session cannot get
+         * past its first minute, and the measurement is the thing worth
+         * bringing back from the car.
+         */
+        public fun probeMode(context: Context): Boolean =
+            context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                .getBoolean(KEY_PROBE, true)
+
+        public fun setProbeMode(context: Context, probe: Boolean) {
+            context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_PROBE, probe).apply()
+        }
         private const val CHANNEL_ID = "projection"
         private const val NOTIFICATION_ID = 1
 

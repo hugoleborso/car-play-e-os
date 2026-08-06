@@ -59,6 +59,12 @@ jobs:
           Needs Android 10 or later. No Play Services, no Google account, no
           root, no custom ROM.
 
+          **Check you got it.** The version string is `0.1.0` in every release
+          and cannot tell you anything. The commit can: the app prints
+          `v0.1.0 · build <commit>` under its title, and it must match the
+          commit in this release's name. Testing an old build in a car park is
+          a wasted trip that looks exactly like a failed experiment.
+
           ## What it does
 
           It **measures**, it does not project. Plug the phone into a car's data
