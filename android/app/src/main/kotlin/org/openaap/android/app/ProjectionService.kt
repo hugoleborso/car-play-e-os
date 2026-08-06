@@ -118,11 +118,7 @@ public class ProjectionService : Service() {
             // The interesting failures land here, and on a phone in a car the
             // log is the only diagnostic anyone will have.
             Log.e(TAG, "session ended with an error", e)
-            ProbeEvents.record(
-                this,
-                ProbeEvents.Kind.FAULT,
-                "Session failed: ${e::class.simpleName}: ${e.message}",
-            )
+            ProbeEvents.record(this, ProbeEvents.Kind.FAULT, "Session failed: ${e.describe()}")
         } finally {
             session.set(null)
             // Before the transport: the encoder holds a hardware codec that the
@@ -243,17 +239,37 @@ public class ProjectionService : Service() {
         },
     )
 
+    /**
+     * Narrates the session onto the phone's own screen.
+     *
+     * Every one of these used to go only to `logcat`, which is unreachable while
+     * the cable is in the head unit -- the same mistake that made the accessory
+     * strings invisible, made twice. A projection session that fails somewhere
+     * between "authenticated" and "a picture" has about six places it could have
+     * stopped, and they need different fixes. Naming the last step reached turns
+     * "the connection failed" into a bug report.
+     */
     private fun logging(): SessionListener = object : SessionListener {
         override fun onVersionAgreed(major: Int, minor: Int) {
             Log.i(TAG, "protocol $major.$minor agreed")
+            event(ProbeEvents.Kind.PROGRESS, "Protocol $major.$minor agreed.")
         }
 
         override fun onHandshakeComplete(protocol: String?, cipherSuite: String?) {
             Log.i(TAG, "TLS established: $protocol / $cipherSuite")
+            event(ProbeEvents.Kind.PROGRESS, "TLS established: $protocol / $cipherSuite")
         }
 
         override fun onAuthenticated() {
             Log.i(TAG, "head unit accepted our certificate")
+            // Everything after this point is encrypted, and this is the first
+            // time that path has run against real hardware. Worth marking
+            // precisely, because a failure just after it means something quite
+            // different from a failure just before.
+            event(
+                ProbeEvents.Kind.PROGRESS,
+                "Car accepted our certificate. Switching to encrypted framing and asking what it can do.",
+            )
             updateNotification(getString(R.string.projection_active))
         }
 
@@ -263,15 +279,61 @@ public class ProjectionService : Service() {
                 "head unit '${response.unitLabel}' (${response.unitMaker} ${response.unitModel}) " +
                     "offers ${channels.map { "${it.id}:${it.kind}" }}",
             )
+            // The channel list is the single most useful unpublished fact a
+            // session produces: which services this unit offers, and on which
+            // ids. Channel ids are not fixed by the protocol and a unit is free
+            // to scramble them.
+            event(
+                ProbeEvents.Kind.PROGRESS,
+                "Car identified itself as '${response.unitLabel}' " +
+                    "(${response.unitMaker} ${response.unitModel}) offering " +
+                    channels.joinToString(", ") { "${it.id}:${it.kind}" },
+            )
+        }
+
+        override fun onChannelOpened(channel: ResolvedChannel) {
+            Log.i(TAG, "channel ${channel.id} (${channel.kind}) open")
+            event(ProbeEvents.Kind.PROGRESS, "Channel ${channel.id} (${channel.kind}) opened.")
         }
 
         override fun onChannelRefused(channel: ResolvedChannel, result: ResultCode) {
             Log.w(TAG, "head unit refused channel ${channel.id} (${channel.kind}): $result")
+            event(
+                ProbeEvents.Kind.ATTENTION,
+                "Car refused channel ${channel.id} (${channel.kind}): $result",
+            )
         }
 
         override fun onEnded(reason: String, cause: Throwable?) {
             Log.i(TAG, "session ended: $reason", cause)
+            event(
+                if (cause == null) ProbeEvents.Kind.PROGRESS else ProbeEvents.Kind.FAULT,
+                "Session ended: $reason" +
+                    (cause?.let { " (${it::class.simpleName}: ${it.message})" } ?: ""),
+            )
         }
+    }
+
+    private fun event(kind: ProbeEvents.Kind, text: String) =
+        ProbeEvents.record(this, kind, text)
+
+    /**
+     * The whole cause chain, plus where it was thrown.
+     *
+     * The top-level message is routinely null or uninformative — an
+     * `SSLException` wrapping the thing that actually went wrong says nothing
+     * useful on its own, and a wrapper's `message` is often just the inner
+     * class name. On a phone in a car this string is the entire bug report, so
+     * it carries the chain and the first frame of our own code.
+     */
+    private fun Throwable.describe(): String {
+        val chain = generateSequence(this, Throwable::cause)
+            .take(MAX_CAUSE_DEPTH)
+            .joinToString(" ← ") { "${it::class.simpleName}: ${it.message ?: "(no message)"}" }
+        val origin = stackTrace.firstOrNull { it.className.startsWith("org.openaap") }
+            ?.let { " at ${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
+            .orEmpty()
+        return chain + origin
     }
 
     override fun onDestroy() {
@@ -317,6 +379,7 @@ public class ProjectionService : Service() {
 
     public companion object {
         private const val TAG = "openaap.service"
+        private const val MAX_CAUSE_DEPTH = 5
         private const val PREFERENCES = "openaap"
         private const val KEY_PROBE = "probe"
 
