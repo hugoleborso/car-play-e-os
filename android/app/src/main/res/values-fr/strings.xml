@@ -90,4 +90,5 @@
     <string name="mode_projecting_detail">Le prochain branchement envoie une image sur l\'écran de la voiture. À tenter seulement une fois qu\'on a vu la voiture accepter un certificat qu\'on a généré.</string>
     <string name="mode_switch_to_project">Passer en projection</string>
     <string name="mode_switch_to_probe">Passer en mesure</string>
+    <string name="projection_report_heading">Dernière session de projection</string>
 </resources>

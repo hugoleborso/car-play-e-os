@@ -50,6 +50,7 @@ public class ProjectionService : Service() {
 
     private val session = AtomicReference<PhoneSession?>(null)
     private val handlers = AtomicReference<ProjectionHandlers?>(null)
+    private val trace = AtomicReference<SessionTrace?>(null)
     private var worker: Thread? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -102,15 +103,20 @@ public class ProjectionService : Service() {
                 runProbe(transport)
                 return
             }
+            val record = SessionTrace(this).also(trace::set)
+            record.milestone("accessory opened: ${transport.description}")
             val tls = AapTlsEngine(TlsRole.SERVER, credentials())
-            val link = AapLink(transport, tls)
-            val projection = handlerFactory().also(handlers::set)
+            // Wired at the message layer rather than the session layer, so the
+            // transcript shows what actually crossed the cable rather than what
+            // the state machine believed it had sent.
+            val link = AapLink(transport, tls, wireTrace(record))
+            val projection = handlerFactory(record).also(handlers::set)
             val phoneSession = PhoneSession(
                 link = link,
                 tls = tls,
                 identity = PhoneIdentity(model = Build.MODEL, maker = Build.MANUFACTURER),
                 handlerFactory = projection,
-                listener = logging(),
+                listener = logging(record),
             )
             session.set(phoneSession)
             phoneSession.run()
@@ -118,13 +124,21 @@ public class ProjectionService : Service() {
             // The interesting failures land here, and on a phone in a car the
             // log is the only diagnostic anyone will have.
             Log.e(TAG, "session ended with an error", e)
-            ProbeEvents.record(
-                this,
-                ProbeEvents.Kind.FAULT,
-                "Session failed: ${e::class.simpleName}: ${e.message}",
-            )
+            val described = e.describe()
+            trace.get()?.fault("threw: $described")
+            ProbeEvents.record(this, ProbeEvents.Kind.FAULT, "Session failed: $described")
         } finally {
             session.set(null)
+            // Written here rather than on a clean ending, because the sessions
+            // worth reporting on are the ones that did not have one.
+            trace.getAndSet(null)?.let { record ->
+                val file = record.write()
+                ProbeEvents.record(
+                    this,
+                    ProbeEvents.Kind.PROGRESS,
+                    "Projection report written to ${file.name}. Share it from the app.",
+                )
+            }
             // Before the transport: the encoder holds a hardware codec that the
             // next session cannot acquire until it is released, and a cable
             // pulled mid-drive is followed by a reconnection within seconds.
@@ -212,11 +226,38 @@ public class ProjectionService : Service() {
      * when the cable comes out: an encoder left running holds a hardware codec
      * that the next session then cannot acquire.
      */
-    private fun handlerFactory(): ProjectionHandlers = ProjectionHandlers(
+    /**
+     * Records what crossed the cable.
+     *
+     * At the message layer, so the transcript is evidence rather than a
+     * restatement of what the state machine intended. When those two disagree
+     * -- a message built but never written, a frame the head unit never
+     * acknowledged -- the disagreement is the bug.
+     */
+    private fun wireTrace(record: SessionTrace): AapLink.Listener = object : AapLink.Listener {
+        override fun onSend(channel: Int, messageId: Int, size: Int, encrypted: Boolean) {
+            record.sent(channel, messageId, size, encrypted)
+        }
+
+        override fun onReceive(message: org.openaap.core.IncomingMessage) {
+            record.received(message)
+        }
+    }
+
+    private fun handlerFactory(record: SessionTrace): ProjectionHandlers = ProjectionHandlers(
         context = this,
         listener = object : MediaService.Listener {
+            override fun onReady(channel: ResolvedChannel, creditWindow: Int) {
+                // The credit window decides how far ahead of the head unit we
+                // may run. A window of one is a head unit asking for strict
+                // lockstep, and explains a stream that looks starved rather
+                // than broken.
+                record.milestone("ch${channel.id} ready, credit window $creditWindow")
+            }
+
             override fun onStarted(channel: ResolvedChannel, format: Int) {
                 Log.i(TAG, "streaming to channel ${channel.id}")
+                record.milestone("ch${channel.id} streaming, format $format")
                 ProbeEvents.record(
                     this@ProjectionService,
                     ProbeEvents.Kind.PROGRESS,
@@ -227,6 +268,7 @@ public class ProjectionService : Service() {
 
             override fun onStopped(channel: ResolvedChannel, reason: String) {
                 Log.i(TAG, "channel ${channel.id} stopped: $reason")
+                record.fault("ch${channel.id} stopped: $reason")
                 ProbeEvents.record(
                     this@ProjectionService,
                     ProbeEvents.Kind.ATTENTION,
@@ -235,6 +277,7 @@ public class ProjectionService : Service() {
             }
 
             override fun onCreditExhausted(channel: ResolvedChannel, droppedFrames: Long) {
+                record.fault("ch${channel.id} out of credit, $droppedFrames frames dropped")
                 // Worth surfacing rather than only logging: a car that stops
                 // acknowledging shows a frozen picture, and without this the
                 // only symptom is a still image that looks like an encoder bug.
@@ -243,17 +286,40 @@ public class ProjectionService : Service() {
         },
     )
 
-    private fun logging(): SessionListener = object : SessionListener {
+    /**
+     * Narrates the session onto the phone's own screen.
+     *
+     * Every one of these used to go only to `logcat`, which is unreachable while
+     * the cable is in the head unit -- the same mistake that made the accessory
+     * strings invisible, made twice. A projection session that fails somewhere
+     * between "authenticated" and "a picture" has about six places it could have
+     * stopped, and they need different fixes. Naming the last step reached turns
+     * "the connection failed" into a bug report.
+     */
+    private fun logging(record: SessionTrace): SessionListener = object : SessionListener {
         override fun onVersionAgreed(major: Int, minor: Int) {
             Log.i(TAG, "protocol $major.$minor agreed")
+            event(ProbeEvents.Kind.PROGRESS, "Protocol $major.$minor agreed.")
+            record.milestone("protocol $major.$minor agreed")
         }
 
         override fun onHandshakeComplete(protocol: String?, cipherSuite: String?) {
             Log.i(TAG, "TLS established: $protocol / $cipherSuite")
+            event(ProbeEvents.Kind.PROGRESS, "TLS established: $protocol / $cipherSuite")
+            record.milestone("TLS established: $protocol / $cipherSuite")
         }
 
         override fun onAuthenticated() {
             Log.i(TAG, "head unit accepted our certificate")
+            // Everything after this point is encrypted, and this is the first
+            // time that path has run against real hardware. Worth marking
+            // precisely, because a failure just after it means something quite
+            // different from a failure just before.
+            event(
+                ProbeEvents.Kind.PROGRESS,
+                "Car accepted our certificate. Switching to encrypted framing and asking what it can do.",
+            )
+            record.milestone("car accepted our certificate; framing is encrypted from here")
             updateNotification(getString(R.string.projection_active))
         }
 
@@ -263,15 +329,65 @@ public class ProjectionService : Service() {
                 "head unit '${response.unitLabel}' (${response.unitMaker} ${response.unitModel}) " +
                     "offers ${channels.map { "${it.id}:${it.kind}" }}",
             )
+            // The channel list is the single most useful unpublished fact a
+            // session produces: which services this unit offers, and on which
+            // ids. Channel ids are not fixed by the protocol and a unit is free
+            // to scramble them.
+            event(
+                ProbeEvents.Kind.PROGRESS,
+                "Car identified itself as '${response.unitLabel}' " +
+                    "(${response.unitMaker} ${response.unitModel}) offering " +
+                    channels.joinToString(", ") { "${it.id}:${it.kind}" },
+            )
+            record.discovered(response, channels)
+        }
+
+        override fun onChannelOpened(channel: ResolvedChannel) {
+            Log.i(TAG, "channel ${channel.id} (${channel.kind}) open")
+            event(ProbeEvents.Kind.PROGRESS, "Channel ${channel.id} (${channel.kind}) opened.")
+            record.milestone("ch${channel.id} (${channel.kind}) opened")
         }
 
         override fun onChannelRefused(channel: ResolvedChannel, result: ResultCode) {
             Log.w(TAG, "head unit refused channel ${channel.id} (${channel.kind}): $result")
+            event(
+                ProbeEvents.Kind.ATTENTION,
+                "Car refused channel ${channel.id} (${channel.kind}): $result",
+            )
+            record.fault("ch${channel.id} (${channel.kind}) refused: $result")
         }
 
         override fun onEnded(reason: String, cause: Throwable?) {
             Log.i(TAG, "session ended: $reason", cause)
+            event(
+                if (cause == null) ProbeEvents.Kind.PROGRESS else ProbeEvents.Kind.FAULT,
+                "Session ended: $reason" +
+                    (cause?.let { " (${it::class.simpleName}: ${it.message})" } ?: ""),
+            )
+            record.ended(reason, cause)
         }
+    }
+
+    private fun event(kind: ProbeEvents.Kind, text: String) =
+        ProbeEvents.record(this, kind, text)
+
+    /**
+     * The whole cause chain, plus where it was thrown.
+     *
+     * The top-level message is routinely null or uninformative — an
+     * `SSLException` wrapping the thing that actually went wrong says nothing
+     * useful on its own, and a wrapper's `message` is often just the inner
+     * class name. On a phone in a car this string is the entire bug report, so
+     * it carries the chain and the first frame of our own code.
+     */
+    private fun Throwable.describe(): String {
+        val chain = generateSequence(this, Throwable::cause)
+            .take(MAX_CAUSE_DEPTH)
+            .joinToString(" ← ") { "${it::class.simpleName}: ${it.message ?: "(no message)"}" }
+        val origin = stackTrace.firstOrNull { it.className.startsWith("org.openaap") }
+            ?.let { " at ${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
+            .orEmpty()
+        return chain + origin
     }
 
     override fun onDestroy() {
@@ -317,6 +433,7 @@ public class ProjectionService : Service() {
 
     public companion object {
         private const val TAG = "openaap.service"
+        private const val MAX_CAUSE_DEPTH = 5
         private const val PREFERENCES = "openaap"
         private const val KEY_PROBE = "probe"
 
