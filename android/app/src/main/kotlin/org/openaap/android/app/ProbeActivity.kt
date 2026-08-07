@@ -56,7 +56,7 @@ public class ProbeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        runner = ProbeRunner(this)
+        runner = activeRunner()
 
         container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -127,8 +127,23 @@ public class ProbeActivity : Activity() {
         runCatching { unregisterReceiver(refresh) }
     }
 
+    /**
+     * The matrix whose results are on screen.
+     *
+     * Follows the selected job, so switching job also switches which set of
+     * results is being read. Projection has no matrix of its own here, and falls
+     * back to the status one — the matrix that has something to say about why a
+     * projection attempt would fail.
+     */
+    private fun activeRunner(): ProbeRunner =
+        when (ProjectionService.job(this)) {
+            ProjectionService.Job.CREDENTIALS -> ProbeRunner.credentials(this)
+            ProjectionService.Job.STATUS, ProjectionService.Job.PROJECT -> ProbeRunner.status(this)
+        }
+
     private fun render() {
         container.removeAllViews()
+        runner = activeRunner()
         val records = runner.records()
         val events = ProbeEvents.recent(this)
 
@@ -139,6 +154,7 @@ public class ProbeActivity : Activity() {
         statusCard(records, events)
 
         diagnostics()
+        variantMatrix()
         projectionReport()
         if (events.isNotEmpty()) eventLog(events)
         if (records.isEmpty()) instructions()
@@ -181,55 +197,121 @@ public class ProbeActivity : Activity() {
     )
 
     /**
-     * Chooses what the next connection does: measure, or project.
+     * Chooses what the next connection is for.
      *
      * On screen rather than behind an `adb` flag, because the whole design
      * constraint of this app is that the cable is in the car when it matters.
      * A mode only reachable from a computer is a mode nobody switches at the
      * moment they want to switch it.
      *
-     * Measuring stays the default. Projection is worth trying only once a car
-     * has been observed accepting an identity we generate, and until then a
-     * projection session cannot get past its first minute.
+     * A button that cycles rather than three radio buttons: there is one right
+     * answer at any given time and the others are history or aspiration, so the
+     * useful gesture is "not this one" rather than a choice among peers.
      */
     private fun modeCard() {
-        val projecting = !ProjectionService.probeMode(this)
+        val job = ProjectionService.job(this)
         val card = card()
         card.addView(
             TextView(this).apply {
-                text = getString(
-                    if (projecting) R.string.mode_projecting else R.string.mode_probing
-                )
+                text = getString(jobTitle(job))
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
                 setTypeface(typeface, Typeface.BOLD)
-                setTextColor(if (projecting) ACCENT_GOOD else ACCENT_NEUTRAL)
+                setTextColor(
+                    if (job == ProjectionService.Job.PROJECT) ACCENT_GOOD else ACCENT_NEUTRAL
+                )
             }
         )
         card.addView(
             TextView(this).apply {
-                text = getString(
-                    if (projecting) R.string.mode_projecting_detail else R.string.mode_probing_detail
-                )
+                text = getString(jobDetail(job))
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
                 alpha = 0.8f
                 setPadding(0, dp(4), 0, 0)
             }
         )
+        val next = ProjectionService.Job.entries[
+            (job.ordinal + 1) % ProjectionService.Job.entries.size
+        ]
         card.addView(
             Button(this).apply {
-                setText(if (projecting) R.string.mode_switch_to_probe else R.string.mode_switch_to_project)
+                text = getString(R.string.mode_switch_to, getString(jobTitle(next)))
                 setOnClickListener {
-                    ProjectionService.setProbeMode(this@ProbeActivity, projecting)
+                    ProjectionService.setJob(this@ProbeActivity, next)
                     ProbeEvents.record(
                         this@ProbeActivity,
                         ProbeEvents.Kind.PROGRESS,
-                        if (projecting) "Switched to measuring." else "Switched to projecting.",
+                        "Next connection: ${getString(jobTitle(next))}.",
                     )
                     render()
                 }
             }
         )
         container.addView(card, marginParams(top = 8))
+    }
+
+    private fun jobTitle(job: ProjectionService.Job): Int = when (job) {
+        ProjectionService.Job.CREDENTIALS -> R.string.mode_credentials
+        ProjectionService.Job.STATUS -> R.string.mode_status
+        ProjectionService.Job.PROJECT -> R.string.mode_projecting
+    }
+
+    private fun jobDetail(job: ProjectionService.Job): Int = when (job) {
+        ProjectionService.Job.CREDENTIALS -> R.string.mode_credentials_detail
+        ProjectionService.Job.STATUS -> R.string.mode_status_detail
+        ProjectionService.Job.PROJECT -> R.string.mode_projecting_detail
+    }
+
+    /**
+     * How the projection variants have fared so far.
+     *
+     * Above the session report on purpose: the comparison across attempts is
+     * what tells someone whether to keep unplugging and replugging, and the
+     * single most recent transcript is the detail behind it.
+     */
+    private fun variantMatrix() {
+        val runner = VariantRunner(this)
+        val summary = runner.summary()
+        val pending = runner.next()
+        if (summary == null && pending == null) return
+
+        heading(getString(R.string.variant_heading))
+        val card = card()
+        card.addView(
+            TextView(this).apply {
+                text = if (pending == null) {
+                    getString(R.string.variant_complete)
+                } else {
+                    getString(
+                        R.string.variant_next,
+                        runner.position + 1,
+                        runner.size,
+                        pending.id,
+                        pending.varies,
+                    )
+                }
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(ACCENT_NEUTRAL)
+            }
+        )
+        container.addView(card, marginParams(bottom = 8))
+
+        summary ?: return
+        container.addView(
+            ScrollView(this).apply {
+                setBackgroundColor(surfaceColour())
+                addView(
+                    TextView(this@ProbeActivity).apply {
+                        text = summary
+                        setTypeface(Typeface.MONOSPACE)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 9.5f)
+                        setPadding(dp(12), dp(12), dp(12), dp(12))
+                        setHorizontallyScrolling(true)
+                    }
+                )
+            },
+            LinearLayout.LayoutParams(MATCH_PARENT, dp(240)).apply { topMargin = dp(4) },
+        )
     }
 
     /**
@@ -294,6 +376,20 @@ public class ProbeActivity : Activity() {
                 setPadding(0, dp(6), 0, 0)
             }
         )
+        // What the next plug-in will actually do, and what it would show. On
+        // screen because a matrix walked without knowing which row is next
+        // produces results nobody can attribute afterwards.
+        runner.next()?.let { step ->
+            card.addView(
+                TextView(this).apply {
+                    text = getString(R.string.probe_next_step, step.id, step.varies) +
+                        "\n" + step.tells
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                    alpha = 0.8f
+                    setPadding(0, dp(6), 0, 0)
+                }
+            )
+        }
         events.lastOrNull()?.let { last ->
             card.addView(
                 TextView(this).apply {
@@ -432,13 +528,28 @@ public class ProbeActivity : Activity() {
         )
         row.addView(
             TextView(this).apply {
-                text = record.stage + (record.alert?.let { "  ·  $it" } ?: "")
+                text = record.stage + "  ·  " + record.verdictLabel +
+                    (record.alert?.let { "  ·  $it" } ?: "")
                 setTypeface(Typeface.MONOSPACE)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
                 setTextColor(colour)
                 setPadding(0, dp(4), 0, 0)
             }
         )
+        // The bytes themselves, on the screen of the phone that is still in the
+        // car. Reading -3 as an acceptance survived a month of reports that
+        // showed a conclusion and not the eleven bytes under it.
+        record.verdictBody?.let { body ->
+            row.addView(
+                TextView(this).apply {
+                    text = body
+                    setTypeface(Typeface.MONOSPACE)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                    alpha = 0.75f
+                    setPadding(0, dp(2), 0, 0)
+                }
+            )
+        }
         // The interpretation, not just the code. Nobody should have to look up
         // what alert 48 means while standing in a car park.
         record.alertMeaning?.let { meaning ->
@@ -473,6 +584,51 @@ public class ProbeActivity : Activity() {
         }
         heading(getString(R.string.probe_verdict_heading))
         paragraph(text)
+        codesSeen(records)
+    }
+
+    /**
+     * Whether the codes discriminate, which is the one thing the status matrix
+     * is for and the one thing a column of numbers does not say by itself.
+     *
+     * Shown for both matrices rather than only the status one: the credential
+     * matrix has verdict codes too, and nine identical ones beside three
+     * different ones is the comparison that matters.
+     */
+    private fun codesSeen(records: List<ProbeRecord>) {
+        val spoke = records.filterNot { it.noContact }
+        if (spoke.isEmpty()) return
+        val distinct = spoke.filter { it.verdictSeen }.map { it.verdictStatus }.distinct()
+        val silent = spoke.any { !it.verdictSeen }
+
+        heading(getString(R.string.codes_heading))
+        val card = card()
+        spoke.groupBy { it.verdictLabel }.forEach { (label, rows) ->
+            card.addView(
+                TextView(this).apply {
+                    text = "${label.padEnd(20)}${rows.joinToString(", ") { it.credential }}"
+                    setTypeface(Typeface.MONOSPACE)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+                    setPadding(0, dp(3), 0, dp(3))
+                }
+            )
+        }
+        card.addView(
+            TextView(this).apply {
+                text = getString(
+                    when {
+                        distinct.size > 1 -> R.string.codes_discriminating
+                        distinct.size == 1 && silent -> R.string.codes_one_bounded
+                        distinct.size == 1 -> R.string.codes_generic
+                        else -> R.string.codes_none
+                    }
+                )
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                alpha = 0.85f
+                setPadding(0, dp(8), 0, 0)
+            }
+        )
+        container.addView(card, marginParams(bottom = 8))
     }
 
     private fun actions(records: List<ProbeRecord>) {
@@ -485,7 +641,8 @@ public class ProbeActivity : Activity() {
         // worth receiving.
         if (records.isNotEmpty() ||
             ProbeEvents.all(this).isNotEmpty() ||
-            SessionTrace(this).reportFile.isFile
+            SessionTrace(this).reportFile.isFile ||
+            VariantRunner(this).summaryFile.isFile
         ) {
             row.addView(
                 Button(this).apply {
@@ -498,7 +655,11 @@ public class ProbeActivity : Activity() {
             Button(this).apply {
                 setText(R.string.probe_restart)
                 setOnClickListener {
-                    runner.reset()
+                    // Every matrix, not the one on screen. "Start again" that
+                    // silently left another matrix half-run would make the next
+                    // report a mixture of two visits to a car.
+                    ProbeRunner.credentials(this@ProbeActivity).reset()
+                    ProbeRunner.status(this@ProbeActivity).reset()
                     ProbeEvents.clear(this@ProbeActivity)
                     // Without this the button looks dead when there was nothing
                     // to clear, which is exactly when someone presses it.
@@ -544,7 +705,17 @@ public class ProbeActivity : Activity() {
         // summary attached and the raw records -- the ones that could confirm
         // it -- stayed on the phone. A share that silently drops the evidence
         // is worse than no share, because it looks complete.
-        val attachments = listOf(file, runner.recordsFile, SessionTrace(this).reportFile)
+        val credentials = ProbeRunner.credentials(this)
+        val status = ProbeRunner.status(this)
+        val attachments = listOf(
+            credentials.reportFile,
+            credentials.recordsFile,
+            status.reportFile,
+            status.recordsFile,
+            SessionTrace(this).reportFile,
+            SessionTrace(this).archiveFile,
+            VariantRunner(this).summaryFile,
+        )
             .filter { it.isFile }
             .mapNotNull { candidate ->
                 runCatching { FileProvider.getUriForFile(this, "$packageName.reports", candidate) }

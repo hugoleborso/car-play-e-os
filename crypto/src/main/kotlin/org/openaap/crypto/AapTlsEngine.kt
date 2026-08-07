@@ -75,8 +75,21 @@ public class AapTlsEngine(
             // "want" rather than "need": a head unit that declines to send a
             // certificate should still get a working session, and we want the
             // diagnostic, not a hard failure.
+            //
+            // Exactly one setter, and this is not tidiness. `wantClientAuth` and
+            // `needClientAuth` are two names for one field in JSSE, and each
+            // setter overwrites the other: `needClientAuth = false` after
+            // `wantClientAuth = true` leaves the engine requesting nothing at
+            // all. That is what this code used to do, and it means every session
+            // this project has ever run -- including all nine credential probes
+            // -- sent no CertificateRequest. The reported observation that a
+            // MIB2 "presents no certificate despite our request" was therefore
+            // about a request that was never made. See docs/03-trust-model.md.
+            //
+            // Setting false here is also correct for the no-request case: false
+            // clears the field to "no client authentication", which is what a
+            // caller passing requestPeerCertificate = false is asking for.
             wantClientAuth = requestPeerCertificate
-            needClientAuth = false
         }
         val supported = supportedProtocols.toSet()
         val selected = protocols.filter { it in supported }

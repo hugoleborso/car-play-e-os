@@ -6,7 +6,7 @@
     <string name="projection_connecting">Connexion à la voiture…</string>
 
     <string name="probe_title">Sonde autoradio</string>
-    <string name="probe_intro">Détermine ce que votre voiture vérifie du certificat du téléphone. Chaque connexion présente une identité différente et enregistre jusqu\'où elle est allée et pourquoi elle s\'est arrêtée.</string>
+    <string name="probe_intro">Détermine ce que votre voiture fait réellement de la session du téléphone. Chaque branchement lance une tentative, en changeant exactement une chose, et enregistre jusqu\'où elle est allée et les octets exacts renvoyés par la voiture.</string>
 
     <string name="probe_status_waiting">Branchez le téléphone dans la voiture</string>
     <string name="probe_status_running">Sonde %1$d sur %2$d</string>
@@ -18,8 +18,8 @@
     <string name="probe_howto_heading">Comment procéder</string>
     <string name="probe_howto_1">Démarrez le moteur et laissez l\'écran de la voiture finir de s\'allumer.</string>
     <string name="probe_howto_2">Branchez le téléphone sur le port USB de données de la voiture, avec un bon câble.</string>
-    <string name="probe_howto_3">Laissez branché une minute. Une voiture qui refuse réessaie généralement d\'elle-même, et chaque tentative fait avancer la sonde.</string>
-    <string name="probe_howto_4">Débranchez et rebranchez jusqu\'à ce que toutes les identités soient passées, puis partagez le rapport.</string>
+    <string name="probe_howto_3">Laissez branché une minute. Une voiture qui refuse réessaie généralement d\'elle-même, et chaque tentative fait avancer la matrice d\'un cran.</string>
+    <string name="probe_howto_4">Débranchez et rebranchez jusqu\'à ce que toutes les tentatives soient passées, puis partagez le rapport.</string>
 
     <string name="probe_results_heading">Résultats</string>
     <string name="probe_head_unit_protocol">La voiture propose le protocole %1$s</string>
@@ -84,11 +84,24 @@
     <string name="events_heading">Ce que le câble a fait</string>
 
     <!-- Ce que fait la prochaine connexion. -->
-    <string name="mode_probing">Mesure de la voiture</string>
-    <string name="mode_probing_detail">Chaque branchement présente un certificat différent et enregistre la réaction de la voiture. Rien ne s\'affiche sur l\'écran de la voiture.</string>
+    <string name="mode_credentials">Essai de certificats</string>
+    <string name="mode_credentials_detail">Chaque branchement présente un certificat différent et enregistre la réaction de la voiture. Déjà passé une fois : les neuf ont été refusés avec le même code.</string>
+    <string name="mode_status">Lecture du refus</string>
+    <string name="mode_status_detail">Chaque branchement casse la session d\'une manière différente, pour savoir si le code de refus de la voiture change. S\'il ne change jamais, il ne dit rien des certificats.</string>
     <string name="mode_projecting">Projection vers la voiture</string>
     <string name="mode_projecting_detail">Le prochain branchement envoie une image sur l\'écran de la voiture. À tenter seulement une fois qu\'on a vu la voiture accepter un certificat qu\'on a généré.</string>
-    <string name="mode_switch_to_project">Passer en projection</string>
-    <string name="mode_switch_to_probe">Passer en mesure</string>
+    <string name="mode_switch_to">Ensuite : %1$s</string>
+
+    <string name="probe_next_step">Prochain branchement : %1$s — %2$s</string>
+
+    <!-- Ce que signifie l\'éventail des codes de refus. -->
+    <string name="codes_heading">Codes donnés par la voiture</string>
+    <string name="codes_discriminating">Des échecs différents reçoivent des codes différents : le code signifie donc quelque chose, et une partie en est désormais cartographiée. Aucune source publique ne documente ces valeurs.</string>
+    <string name="codes_one_bounded">Un seul code, et uniquement là où la session est allée assez loin pour mériter un verdict. Cela limite ce qu\'il peut vouloir dire sans montrer qu\'il porte sur les certificats.</string>
+    <string name="codes_generic">Un seul code pour tous les types d\'échec, y compris ceux qui n\'ont rien à voir avec le certificat. C\'est un « quelque chose a échoué » générique, qui ne nous apprend rien sur le mur de confiance.</string>
+    <string name="codes_none">La voiture n\'a envoyé aucun verdict lors des tentatives allées assez loin pour en attendre un.</string>
     <string name="projection_report_heading">Dernière session de projection</string>
+    <string name="variant_heading">Tentatives de projection</string>
+    <string name="variant_next">Prochain branchement : %1$d sur %2$d — %3$s (%4$s)</string>
+    <string name="variant_complete">Toutes les variantes ont été essayées. Partagez le rapport.</string>
 </resources>

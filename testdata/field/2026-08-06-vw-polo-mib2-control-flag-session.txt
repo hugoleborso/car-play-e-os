@@ -1,0 +1,33 @@
+openaap projection session report
+==============================================================================
+generated  : 2026-08-06 21:03:13
+app build  : 817ad31
+phone      : Fairphone Fairphone 6
+android    : 16 (API 36)
+rom build  : BP2A.250805.005
+duration   : 106 ms
+outcome    : protocol violation: peer sent ciphertext on channel 0 before the handshake completed
+
+Media
+------------------------------------------------------------------------------
+  No media message was ever sent. The session never reached the point
+  of streaming, so nothing could have appeared on the car screen.
+
+Transcript
+------------------------------------------------------------------------------
+       0 ms  ** accessory opened: usb:Android/Android Auto v1.0
+       0 ms  ** variant listen-only-control-flag: stays quiet, and flags what it does send
+      89 ms  <- ch0 VersionRequest 4B plain
+      89 ms  -> ch0 VersionResponse 6B plain CONTROL
+      92 ms  ** protocol 1.0 agreed
+      96 ms  !! session ended: protocol violation: peer sent ciphertext on channel 0 before the handshake completed
+     100 ms  !! threw: ProtocolViolation: peer sent ciphertext on channel 0 before the handshake completed at AapLink.receive:203
+
+Legend
+------------------------------------------------------------------------------
+  ->  sent by the phone        <-  sent by the car
+  **  session milestone        !!  fault
+
+  Media payload messages are counted above rather than listed here; a
+  minute of video is well over a thousand of them. Everything else is
+  listed individually.

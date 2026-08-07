@@ -125,17 +125,35 @@ public object TestPki {
         return Authority(certificate, keys, name)
     }
 
-    /** Creates a standalone self-signed certificate with no CA above it. */
+    /**
+     * Creates a standalone self-signed certificate with no CA above it.
+     *
+     * [subjectName] replaces the default `CN=<commonName>` on the subject only,
+     * leaving the issuer as the common name. The status matrix needs a
+     * certificate whose subject is an *empty* name, to ask whether a head unit's
+     * rejection comes from its certificate parser or from its trust policy —
+     * two findings that are indistinguishable while every identity we present is
+     * well formed.
+     *
+     * The issuer is deliberately not overridden with it. **A certificate with an
+     * empty issuer cannot be constructed at all:** BouncyCastle will build one,
+     * and the platform's own `CertificateFactory` then refuses to parse it with
+     * `Empty issuer DN not allowed in X509Certificates`. So a probe with both
+     * names empty would fail on the phone before it ever reached a car, which is
+     * a connection spent measuring our own TLS library. Measured, not assumed —
+     * it is what the first version of this did.
+     */
     public fun selfSigned(
         commonName: String,
         keyType: KeyType = KeyType.RSA_2048,
         validityDays: Long = 30,
         version: CertificateVersion = CertificateVersion.V3,
         validFromDaysAgo: Long = 1,
+        subjectName: String? = null,
     ): Leaf {
         val keys = generateKeyPair(keyType)
         val certificate = buildCertificate(
-            subjectName = "CN=$commonName",
+            subjectName = subjectName ?: "CN=$commonName",
             subjectKeys = keys,
             issuerName = "CN=$commonName",
             issuerKey = keys.private,
@@ -269,6 +287,18 @@ public class StaticCredentialProvider(
     override val chain: List<X509Certificate>,
     override val privateKey: PrivateKey,
     override val trustAnchors: List<X509Certificate> = emptyList(),
+    /**
+     * Whether [trustAnchors] are enforced, or merely advertised.
+     *
+     * These are two different jobs that TLS runs through one list. As the TLS
+     * server we name our acceptable issuers in the `CertificateRequest`, and a
+     * client picks the certificate that matches one of those names — so the list
+     * decides both *what we will accept* and *what the peer is willing to offer
+     * us*. Defaulting the two together is right almost everywhere and wrong for
+     * one measurement: naming an authority to invite a peer's certificate out of
+     * it, while still accepting whatever arrives, needs them separated.
+     */
+    override val verifyPeer: Boolean = trustAnchors.isNotEmpty(),
 ) : CredentialProvider {
 
     public companion object {
@@ -276,7 +306,8 @@ public class StaticCredentialProvider(
             name: String,
             leaf: TestPki.Leaf,
             trustAnchors: List<X509Certificate> = emptyList(),
+            verifyPeer: Boolean = trustAnchors.isNotEmpty(),
         ): StaticCredentialProvider =
-            StaticCredentialProvider(name, leaf.chain, leaf.privateKey, trustAnchors)
+            StaticCredentialProvider(name, leaf.chain, leaf.privateKey, trustAnchors, verifyPeer)
     }
 }

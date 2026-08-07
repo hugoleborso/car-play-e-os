@@ -1,0 +1,404 @@
+
+
+##############################################################################
+
+openaap projection session report
+==============================================================================
+generated  : 2026-08-06 23:24:29
+app build  : e9c2636
+phone      : Fairphone Fairphone 6
+android    : 16 (API 36)
+rom build  : BP2A.250805.005
+duration   : 4050 ms
+outcome    : session failed: USB read failed on usb:Android/Android Auto v1.0
+
+Media
+------------------------------------------------------------------------------
+  No media message was ever sent. The session never reached the point
+  of streaming, so nothing could have appeared on the car screen.
+
+Transcript
+------------------------------------------------------------------------------
+       1 ms  ** accessory opened: usb:Android/Android Auto v1.0
+       1 ms  ** variant plaintext-listen: stays in the clear and stays silent
+    1426 ms  <- ch0 VersionRequest 4B plain
+    1427 ms  ::         field -1 (wire -1): stopped: field number 0 at byte 0, not protobuf
+    1427 ms  ::         raw 00 01 00 00
+    1428 ms  -> ch0 VersionResponse 6B plain
+    1434 ms  ** protocol 1.0 agreed
+    1443 ms  <- ch0 TlsHandshake 517B plain
+    1443 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+    1444 ms  ::         raw 16 03 01 02 00 01 00 01 fc 03 03 6e 83 21 5d e8 41 c7 df 9a 68 a4 b4 f7 4f 27 5e 66 5e 99 c5 da bb db 79 67 7b 75 71 13 60 0d 93 00 00 b4 c0 30 c0 2c c0 28 c0 24 c0 14 c0 0a 00 a5 00 a3 00 a1 … (517 bytes total)
+    1448 ms  -> ch0 TlsHandshake 1141B plain
+    1538 ms  <- ch0 TlsHandshake 126B plain
+    1538 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+    1539 ms  ::         raw 16 03 03 00 46 10 00 00 42 41 04 fe 8f 27 1e db f6 1d e3 7a 5b 28 ad 5b d6 f2 fe 74 af f8 b0 0c 62 2e 69 2c 21 25 bb 9e 50 0a ee df b2 bb 08 2a d3 53 0d 0c 18 e6 d0 71 90 7f 81 f6 a0 3d 8d 0f … (126 bytes total)
+    1544 ms  -> ch0 TlsHandshake 51B plain
+    1548 ms  ** TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    1551 ms  <- ch0 AuthSucceeded 11B plain
+    1551 ms  ::         field 1 (wire 0): varint -3 | sint -9223372036854775807
+    1551 ms  ::         raw 08 fd ff ff ff ff ff ff ff ff 01
+    1567 ms  ** car accepted our certificate; framing is encrypted from here
+    1573 ms  ** listening: this variant never asks
+    4024 ms  !! session ended: session failed: USB read failed on usb:Android/Android Auto v1.0
+    4043 ms  !! threw: TransportException: USB read failed on usb:Android/Android Auto v1.0 ← IOException: read failed: EIO (I/O error) ← ErrnoException: read failed: EIO (I/O error) at UsbAccessoryTransport.read:58
+
+Legend
+------------------------------------------------------------------------------
+  ->  sent by the phone        <-  sent by the car
+  **  session milestone        !!  fault
+
+  Media payload messages are counted above rather than listed here; a
+  minute of video is well over a thousand of them. Everything else is
+  listed individually.
+
+
+##############################################################################
+
+openaap projection session report
+==============================================================================
+generated  : 2026-08-06 23:24:44
+app build  : e9c2636
+phone      : Fairphone Fairphone 6
+android    : 16 (API 36)
+rom build  : BP2A.250805.005
+duration   : 14005 ms
+outcome    : session failed: USB read failed on usb:Android/Android Auto v1.0
+
+Media
+------------------------------------------------------------------------------
+  No media message was ever sent. The session never reached the point
+  of streaming, so nothing could have appeared on the car screen.
+
+Transcript
+------------------------------------------------------------------------------
+       0 ms  ** accessory opened: usb:Android/Android Auto v1.0
+       0 ms  ** variant plaintext-listen: stays in the clear and stays silent
+   13986 ms  !! session ended: session failed: USB read failed on usb:Android/Android Auto v1.0
+   13995 ms  !! threw: TransportException: USB read failed on usb:Android/Android Auto v1.0 ← IOException: read failed: EIO (I/O error) ← ErrnoException: read failed: EIO (I/O error) at UsbAccessoryTransport.read:58
+
+Legend
+------------------------------------------------------------------------------
+  ->  sent by the phone        <-  sent by the car
+  **  session milestone        !!  fault
+
+  Media payload messages are counted above rather than listed here; a
+  minute of video is well over a thousand of them. Everything else is
+  listed individually.
+
+
+##############################################################################
+
+openaap projection session report
+==============================================================================
+generated  : 2026-08-06 23:25:01
+app build  : e9c2636
+phone      : Fairphone Fairphone 6
+android    : 16 (API 36)
+rom build  : BP2A.250805.005
+duration   : 263 ms
+outcome    : session failed: USB read failed on usb:Android/Android Auto v1.0
+
+Media
+------------------------------------------------------------------------------
+  No media message was ever sent. The session never reached the point
+  of streaming, so nothing could have appeared on the car screen.
+
+Transcript
+------------------------------------------------------------------------------
+       0 ms  ** accessory opened: usb:Android/Android Auto v1.0
+       0 ms  ** variant baseline: asks immediately: the reference failure
+     141 ms  <- ch0 VersionRequest 4B plain
+     142 ms  ::         field -1 (wire -1): stopped: field number 0 at byte 0, not protobuf
+     142 ms  ::         raw 00 01 00 00
+     142 ms  -> ch0 VersionResponse 6B plain
+     145 ms  ** protocol 1.0 agreed
+     145 ms  <- ch0 TlsHandshake 517B plain
+     145 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+     146 ms  ::         raw 16 03 01 02 00 01 00 01 fc 03 03 67 b2 93 d5 77 0a e5 70 56 50 df fa f0 6b 03 35 1f d4 88 30 f2 8f f9 8f 34 05 b2 a1 4a ae 61 a5 00 00 b4 c0 30 c0 2c c0 28 c0 24 c0 14 c0 0a 00 a5 00 a3 00 a1 … (517 bytes total)
+     148 ms  -> ch0 TlsHandshake 1142B plain
+     183 ms  <- ch0 TlsHandshake 126B plain
+     183 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+     183 ms  ::         raw 16 03 03 00 46 10 00 00 42 41 04 ef e3 ee e8 d0 fb 76 23 d1 5c 3c 0b 5a 32 48 60 1b d7 f8 bd 26 c0 b2 19 5a 53 11 4c 82 e2 e7 6a 89 81 8c 8a a8 f1 8e 35 2c d9 de e3 e0 8e 35 1c 11 33 cc 6c 8f … (126 bytes total)
+     184 ms  -> ch0 TlsHandshake 51B plain
+     187 ms  ** TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+     188 ms  <- ch0 AuthSucceeded 11B plain
+     188 ms  ::         field 1 (wire 0): varint -3 | sint -9223372036854775807
+     188 ms  ::         raw 08 fd ff ff ff ff ff ff ff ff 01
+     190 ms  ** car accepted our certificate; framing is encrypted from here
+     195 ms  -> ch0 DiscoveryRequest 24B enc
+     247 ms  !! session ended: session failed: USB read failed on usb:Android/Android Auto v1.0
+     256 ms  !! threw: TransportException: USB read failed on usb:Android/Android Auto v1.0 ← IOException: read failed: EIO (I/O error) ← ErrnoException: read failed: EIO (I/O error) at UsbAccessoryTransport.read:58
+
+Legend
+------------------------------------------------------------------------------
+  ->  sent by the phone        <-  sent by the car
+  **  session milestone        !!  fault
+
+  Media payload messages are counted above rather than listed here; a
+  minute of video is well over a thousand of them. Everything else is
+  listed individually.
+
+
+##############################################################################
+
+openaap projection session report
+==============================================================================
+generated  : 2026-08-06 23:25:12
+app build  : e9c2636
+phone      : Fairphone Fairphone 6
+android    : 16 (API 36)
+rom build  : BP2A.250805.005
+duration   : 9222 ms
+outcome    : session failed: USB read failed on usb:Android/Android Auto v1.0
+
+Media
+------------------------------------------------------------------------------
+  No media message was ever sent. The session never reached the point
+  of streaming, so nothing could have appeared on the car screen.
+
+Transcript
+------------------------------------------------------------------------------
+       0 ms  ** accessory opened: usb:Android/Android Auto v1.0
+       0 ms  ** variant listen-only: says nothing at all, and records everything the car sends
+    6786 ms  <- ch0 VersionRequest 4B plain
+    6786 ms  ::         field -1 (wire -1): stopped: field number 0 at byte 0, not protobuf
+    6787 ms  ::         raw 00 01 00 00
+    6787 ms  -> ch0 VersionResponse 6B plain
+    6797 ms  ** protocol 1.0 agreed
+    6799 ms  <- ch0 TlsHandshake 517B plain
+    6799 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+    6801 ms  ::         raw 16 03 01 02 00 01 00 01 fc 03 03 ed f0 79 51 b1 b8 d8 c8 e3 a9 0d f6 6b 6f c6 62 66 ba 3e 20 f6 30 fa 4b fb 38 49 09 b3 fa 21 be 00 00 b4 c0 30 c0 2c c0 28 c0 24 c0 14 c0 0a 00 a5 00 a3 00 a1 … (517 bytes total)
+    6806 ms  -> ch0 TlsHandshake 1142B plain
+    6839 ms  <- ch0 TlsHandshake 126B plain
+    6839 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+    6840 ms  ::         raw 16 03 03 00 46 10 00 00 42 41 04 ae 51 56 d2 cb 1b f5 ab d1 d6 99 35 e7 19 0f c2 7b b0 9e ea 12 9b d3 d7 4d a6 bd 95 c1 84 c5 85 cc 9f 0e 99 72 93 b2 f4 61 a5 14 60 f7 e8 08 3f 1f 80 07 79 75 … (126 bytes total)
+    6841 ms  -> ch0 TlsHandshake 51B plain
+    6844 ms  ** TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    6845 ms  <- ch0 AuthSucceeded 11B plain
+    6845 ms  ::         field 1 (wire 0): varint -3 | sint -9223372036854775807
+    6845 ms  ::         raw 08 fd ff ff ff ff ff ff ff ff 01
+    6848 ms  ** car accepted our certificate; framing is encrypted from here
+    6854 ms  ** listening: this variant never asks
+    9197 ms  !! session ended: session failed: USB read failed on usb:Android/Android Auto v1.0
+    9211 ms  !! threw: TransportException: USB read failed on usb:Android/Android Auto v1.0 ← IOException: read failed: EIO (I/O error) ← ErrnoException: read failed: EIO (I/O error) at UsbAccessoryTransport.read:58
+
+Legend
+------------------------------------------------------------------------------
+  ->  sent by the phone        <-  sent by the car
+  **  session milestone        !!  fault
+
+  Media payload messages are counted above rather than listed here; a
+  minute of video is well over a thousand of them. Everything else is
+  listed individually.
+
+
+##############################################################################
+
+openaap projection session report
+==============================================================================
+generated  : 2026-08-06 23:25:21
+app build  : e9c2636
+phone      : Fairphone Fairphone 6
+android    : 16 (API 36)
+rom build  : BP2A.250805.005
+duration   : 1227 ms
+outcome    : session failed: USB read failed on usb:Android/Android Auto v1.0
+
+Media
+------------------------------------------------------------------------------
+  No media message was ever sent. The session never reached the point
+  of streaming, so nothing could have appeared on the car screen.
+
+Transcript
+------------------------------------------------------------------------------
+       1 ms  ** accessory opened: usb:Android/Android Auto v1.0
+       1 ms  ** variant quiet-1s: waits 1s, then asks
+     106 ms  <- ch0 VersionRequest 4B plain
+     106 ms  ::         field -1 (wire -1): stopped: field number 0 at byte 0, not protobuf
+     106 ms  ::         raw 00 01 00 00
+     106 ms  -> ch0 VersionResponse 6B plain
+     109 ms  ** protocol 1.0 agreed
+     109 ms  <- ch0 TlsHandshake 517B plain
+     109 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+     110 ms  ::         raw 16 03 01 02 00 01 00 01 fc 03 03 79 30 ce 40 c8 52 fa 18 b8 2d d1 4e f5 b7 ee 36 e7 41 42 65 9e 0a c0 cc d3 bf a5 40 71 a0 c7 60 00 00 b4 c0 30 c0 2c c0 28 c0 24 c0 14 c0 0a 00 a5 00 a3 00 a1 … (517 bytes total)
+     112 ms  -> ch0 TlsHandshake 1141B plain
+     145 ms  <- ch0 TlsHandshake 126B plain
+     145 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+     145 ms  ::         raw 16 03 03 00 46 10 00 00 42 41 04 4a dc 76 95 fb f8 13 3d e4 bb 63 9b b4 2f ee 65 dd 45 d3 ff 1a 42 eb 01 b1 e9 b7 25 c1 b5 42 77 65 ea e0 cc 85 0d 4d 25 f3 e8 34 c0 e9 97 4f af 08 1e 87 99 07 … (126 bytes total)
+     146 ms  -> ch0 TlsHandshake 51B plain
+     149 ms  ** TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+     150 ms  <- ch0 AuthSucceeded 11B plain
+     150 ms  ::         field 1 (wire 0): varint -3 | sint -9223372036854775807
+     150 ms  ::         raw 08 fd ff ff ff ff ff ff ff ff 01
+     153 ms  ** car accepted our certificate; framing is encrypted from here
+    1155 ms  -> ch0 DiscoveryRequest 24B enc
+    1208 ms  !! session ended: session failed: USB read failed on usb:Android/Android Auto v1.0
+    1219 ms  !! threw: TransportException: USB read failed on usb:Android/Android Auto v1.0 ← IOException: read failed: EIO (I/O error) ← ErrnoException: read failed: EIO (I/O error) at UsbAccessoryTransport.read:58
+
+Legend
+------------------------------------------------------------------------------
+  ->  sent by the phone        <-  sent by the car
+  **  session milestone        !!  fault
+
+  Media payload messages are counted above rather than listed here; a
+  minute of video is well over a thousand of them. Everything else is
+  listed individually.
+
+
+##############################################################################
+
+openaap projection session report
+==============================================================================
+generated  : 2026-08-06 23:25:30
+app build  : e9c2636
+phone      : Fairphone Fairphone 6
+android    : 16 (API 36)
+rom build  : BP2A.250805.005
+duration   : 6805 ms
+outcome    : session failed: USB write failed on usb:Android/Android Auto v1.0
+
+Media
+------------------------------------------------------------------------------
+  No media message was ever sent. The session never reached the point
+  of streaming, so nothing could have appeared on the car screen.
+
+Transcript
+------------------------------------------------------------------------------
+       0 ms  ** accessory opened: usb:Android/Android Auto v1.0
+       0 ms  ** variant quiet-3s: waits 3s, then asks — past the point silence alone died
+    3680 ms  <- ch0 VersionRequest 4B plain
+    3681 ms  ::         field -1 (wire -1): stopped: field number 0 at byte 0, not protobuf
+    3681 ms  ::         raw 00 01 00 00
+    3681 ms  -> ch0 VersionResponse 6B plain
+    3692 ms  ** protocol 1.0 agreed
+    3694 ms  <- ch0 TlsHandshake 517B plain
+    3694 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+    3696 ms  ::         raw 16 03 01 02 00 01 00 01 fc 03 03 ef 92 b1 1c 9c c2 f6 4d 2a 5e e7 9f 6e 31 bc 1a 44 27 47 33 6a db c3 a4 9a cc 64 2e 42 14 e7 eb 00 00 b4 c0 30 c0 2c c0 28 c0 24 c0 14 c0 0a 00 a5 00 a3 00 a1 … (517 bytes total)
+    3700 ms  -> ch0 TlsHandshake 1142B plain
+    3734 ms  <- ch0 TlsHandshake 126B plain
+    3734 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+    3734 ms  ::         raw 16 03 03 00 46 10 00 00 42 41 04 1d 87 3a 9e fd 42 0c 53 df e6 46 9a 73 a3 63 19 72 26 0b 5e cf 48 7a 72 a7 b1 00 46 61 b9 d6 6a a6 28 25 21 c4 51 74 bb 86 f4 2a e2 e7 b9 8d d0 90 26 83 12 99 … (126 bytes total)
+    3735 ms  -> ch0 TlsHandshake 51B plain
+    3739 ms  ** TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    3740 ms  <- ch0 AuthSucceeded 11B plain
+    3740 ms  ::         field 1 (wire 0): varint -3 | sint -9223372036854775807
+    3740 ms  ::         raw 08 fd ff ff ff ff ff ff ff ff 01
+    3744 ms  ** car accepted our certificate; framing is encrypted from here
+    6772 ms  !! session ended: session failed: USB write failed on usb:Android/Android Auto v1.0
+    6789 ms  !! threw: TransportException: USB write failed on usb:Android/Android Auto v1.0 ← IOException: write failed: ENODEV (No such device) ← ErrnoException: write failed: ENODEV (No such device) at UsbAccessoryTransport.write:68
+
+Legend
+------------------------------------------------------------------------------
+  ->  sent by the phone        <-  sent by the car
+  **  session milestone        !!  fault
+
+  Media payload messages are counted above rather than listed here; a
+  minute of video is well over a thousand of them. Everything else is
+  listed individually.
+
+
+##############################################################################
+
+openaap projection session report
+==============================================================================
+generated  : 2026-08-06 23:25:37
+app build  : e9c2636
+phone      : Fairphone Fairphone 6
+android    : 16 (API 36)
+rom build  : BP2A.250805.005
+duration   : 231 ms
+outcome    : session failed: USB read failed on usb:Android/Android Auto v1.0
+
+Media
+------------------------------------------------------------------------------
+  No media message was ever sent. The session never reached the point
+  of streaming, so nothing could have appeared on the car screen.
+
+Transcript
+------------------------------------------------------------------------------
+       0 ms  ** accessory opened: usb:Android/Android Auto v1.0
+       0 ms  ** variant plaintext-discovery: asks in the clear, never enabling encryption
+     126 ms  <- ch0 VersionRequest 4B plain
+     126 ms  ::         field -1 (wire -1): stopped: field number 0 at byte 0, not protobuf
+     126 ms  ::         raw 00 01 00 00
+     126 ms  -> ch0 VersionResponse 6B plain
+     129 ms  ** protocol 1.0 agreed
+     129 ms  <- ch0 TlsHandshake 517B plain
+     129 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+     130 ms  ::         raw 16 03 01 02 00 01 00 01 fc 03 03 f3 bd 0e 30 6d dd 3d 1f d4 cf a4 34 2c 75 e8 e0 7d f0 c8 1f 77 30 ef ab 45 f1 c4 c8 d3 07 de 4f 00 00 b4 c0 30 c0 2c c0 28 c0 24 c0 14 c0 0a 00 a5 00 a3 00 a1 … (517 bytes total)
+     132 ms  -> ch0 TlsHandshake 1141B plain
+     165 ms  <- ch0 TlsHandshake 126B plain
+     165 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+     165 ms  ::         raw 16 03 03 00 46 10 00 00 42 41 04 2f 90 98 7c 9e f7 b0 9c 3c 2d b8 4b a0 54 fc 22 80 0b 19 af 43 db ae eb 0a d9 3f 42 24 0e c8 0a f9 f8 95 7a 8c 33 9c 41 0d 2a 82 0c 27 5f ee fc 70 45 f6 5d e4 … (126 bytes total)
+     166 ms  -> ch0 TlsHandshake 51B plain
+     169 ms  ** TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+     169 ms  <- ch0 AuthSucceeded 11B plain
+     170 ms  ::         field 1 (wire 0): varint -3 | sint -9223372036854775807
+     170 ms  ::         raw 08 fd ff ff ff ff ff ff ff ff 01
+     173 ms  ** car accepted our certificate; framing is encrypted from here
+     174 ms  -> ch0 DiscoveryRequest 24B plain
+     218 ms  !! session ended: session failed: USB read failed on usb:Android/Android Auto v1.0
+     223 ms  !! threw: TransportException: USB read failed on usb:Android/Android Auto v1.0 ← IOException: read failed: EIO (I/O error) ← ErrnoException: read failed: EIO (I/O error) at UsbAccessoryTransport.read:58
+
+Legend
+------------------------------------------------------------------------------
+  ->  sent by the phone        <-  sent by the car
+  **  session milestone        !!  fault
+
+  Media payload messages are counted above rather than listed here; a
+  minute of video is well over a thousand of them. Everything else is
+  listed individually.
+
+
+##############################################################################
+
+openaap projection session report
+==============================================================================
+generated  : 2026-08-06 23:25:44
+app build  : e9c2636
+phone      : Fairphone Fairphone 6
+android    : 16 (API 36)
+rom build  : BP2A.250805.005
+duration   : 5799 ms
+outcome    : session failed: USB read failed on usb:Android/Android Auto v1.0
+
+Media
+------------------------------------------------------------------------------
+  No media message was ever sent. The session never reached the point
+  of streaming, so nothing could have appeared on the car screen.
+
+Transcript
+------------------------------------------------------------------------------
+       0 ms  ** accessory opened: usb:Android/Android Auto v1.0
+       0 ms  ** variant plaintext-listen: stays in the clear and stays silent
+    3383 ms  <- ch0 VersionRequest 4B plain
+    3383 ms  ::         field -1 (wire -1): stopped: field number 0 at byte 0, not protobuf
+    3384 ms  ::         raw 00 01 00 00
+    3384 ms  -> ch0 VersionResponse 6B plain
+    3396 ms  ** protocol 1.0 agreed
+    3397 ms  <- ch0 TlsHandshake 517B plain
+    3398 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+    3399 ms  ::         raw 16 03 01 02 00 01 00 01 fc 03 03 cf e2 d4 6b 38 e5 33 f3 22 3d a3 e9 2e a1 b9 cb 8f c8 92 25 65 5e c4 bd 39 cb a2 c7 6b 1d 01 7c 00 00 b4 c0 30 c0 2c c0 28 c0 24 c0 14 c0 0a 00 a5 00 a3 00 a1 … (517 bytes total)
+    3404 ms  -> ch0 TlsHandshake 1142B plain
+    3439 ms  <- ch0 TlsHandshake 126B plain
+    3439 ms  ::         field 2 (wire 6): unsupported wire type; stopping
+    3439 ms  ::         raw 16 03 03 00 46 10 00 00 42 41 04 2d 12 fa a7 65 cc 09 2c 45 d0 4c 44 de 2b a6 01 31 ee f1 68 f7 2e b1 ee ea 6e b2 06 cd ec 07 10 43 d7 c0 a3 8c 06 dc f6 dd fe fa bd 95 c9 b5 7c e8 5e 69 c8 2b … (126 bytes total)
+    3440 ms  -> ch0 TlsHandshake 51B plain
+    3444 ms  ** TLS established: TLSv1.2 / TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    3445 ms  <- ch0 AuthSucceeded 11B plain
+    3445 ms  ::         field 1 (wire 0): varint -3 | sint -9223372036854775807
+    3446 ms  ::         raw 08 fd ff ff ff ff ff ff ff ff 01
+    3450 ms  ** car accepted our certificate; framing is encrypted from here
+    3455 ms  ** listening: this variant never asks
+    5773 ms  !! session ended: session failed: USB read failed on usb:Android/Android Auto v1.0
+    5786 ms  !! threw: TransportException: USB read failed on usb:Android/Android Auto v1.0 ← IOException: read failed: EIO (I/O error) ← ErrnoException: read failed: EIO (I/O error) at UsbAccessoryTransport.read:58
+
+Legend
+------------------------------------------------------------------------------
+  ->  sent by the phone        <-  sent by the car
+  **  session milestone        !!  fault
+
+  Media payload messages are counted above rather than listed here; a
+  minute of video is well over a thousand of them. Everything else is
+  listed individually.

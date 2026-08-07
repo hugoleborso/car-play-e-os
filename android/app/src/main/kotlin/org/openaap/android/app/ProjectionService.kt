@@ -26,6 +26,7 @@ import org.openaap.core.PhoneIdentity
 import org.openaap.core.PhoneSession
 import org.openaap.core.ResolvedChannel
 import org.openaap.core.SessionListener
+import org.openaap.core.SessionVariant
 import org.openaap.crypto.AapTlsEngine
 import org.openaap.crypto.CredentialProvider
 import org.openaap.crypto.StaticCredentialProvider
@@ -47,6 +48,30 @@ import org.openaap.protocol.proto.ResultCode
  * waits until a whole transfer arrives, which on an idle link is indefinite.
  */
 public class ProjectionService : Service() {
+
+    /**
+     * What the next connection is for.
+     *
+     * Three jobs rather than two because the first question has been answered
+     * and the second has not. The credential matrix ran and every identity got
+     * the same refusal; the open question moved from "which certificate" to
+     * "what does that refusal actually say", and those need different matrices
+     * over the same short visit to a car.
+     *
+     * Declared on the class rather than in the companion beside the accessors
+     * that use it: a class nested in a companion object is `Foo.Companion.Bar`
+     * to every caller, which reads as a mistake at every call site.
+     */
+    public enum class Job {
+        /** The nine identities. Answered: all refused, identically. */
+        CREDENTIALS,
+
+        /** The status matrix, which provokes different kinds of failure. */
+        STATUS,
+
+        /** Actually project. Only worth trying once a car has accepted an identity. */
+        PROJECT,
+    }
 
     private val session = AtomicReference<PhoneSession?>(null)
     private val handlers = AtomicReference<ProjectionHandlers?>(null)
@@ -99,17 +124,42 @@ public class ProjectionService : Service() {
         }
 
         try {
-            if (probeMode()) {
-                runProbe(transport)
-                return
+            when (job(this)) {
+                Job.CREDENTIALS -> {
+                    runProbe(transport, ProbeRunner.credentials(this))
+                    return
+                }
+
+                Job.STATUS -> {
+                    runProbe(transport, ProbeRunner.status(this))
+                    return
+                }
+
+                Job.PROJECT -> Unit
+            }
+            val variants = VariantRunner(this)
+            val variant = variants.next() ?: SessionVariant.matrix().last().also {
+                Log.i(TAG, "variant matrix complete; reusing ${it.id}")
             }
             val record = SessionTrace(this).also(trace::set)
             record.milestone("accessory opened: ${transport.description}")
+            record.milestone("variant ${variant.id}: ${variant.varies}")
+            ProbeEvents.record(
+                this,
+                ProbeEvents.Kind.PROGRESS,
+                "Projection attempt ${variants.position + 1} of ${variants.size} — " +
+                    "${variant.id}: ${variant.varies}",
+            )
             val tls = AapTlsEngine(TlsRole.SERVER, credentials())
             // Wired at the message layer rather than the session layer, so the
             // transcript shows what actually crossed the cable rather than what
             // the state machine believed it had sent.
-            val link = AapLink(transport, tls, wireTrace(record))
+            val link = AapLink(
+                transport,
+                tls,
+                wireTrace(record),
+                controlFlagOnControlChannel = variant.controlFlagOnControlChannel,
+            )
             val projection = handlerFactory(record).also(handlers::set)
             val phoneSession = PhoneSession(
                 link = link,
@@ -117,9 +167,14 @@ public class ProjectionService : Service() {
                 identity = PhoneIdentity(model = Build.MODEL, maker = Build.MANUFACTURER),
                 handlerFactory = projection,
                 listener = logging(record),
+                variant = variant,
             )
             session.set(phoneSession)
-            phoneSession.run()
+            try {
+                phoneSession.run()
+            } finally {
+                variants.record(variant, record.outcome())
+            }
         } catch (e: Throwable) {
             // The interesting failures land here, and on a phone in a car the
             // log is the only diagnostic anyone will have.
@@ -148,30 +203,20 @@ public class ProjectionService : Service() {
         }
     }
 
-    /**
-     * Whether to spend this connection measuring rather than projecting.
-     *
-     * The default is to measure. Until we know whether a head unit will accept
-     * an identity we are allowed to generate, a full projection session cannot
-     * get past its first minute anyway, and the measurement is the thing worth
-     * bringing back from the car. Turn it off with:
-     *
-     * ```
-     * adb shell am startservice -n org.openaap.projection/.ProjectionService --ez probe false
-     * ```
-     */
-    private fun probeMode(): Boolean = probeMode(this)
-
-    private fun runProbe(transport: org.openaap.transport.Transport) {
-        val runner = ProbeRunner(this)
+    private fun runProbe(transport: org.openaap.transport.Transport, runner: ProbeRunner) {
+        val step = runner.next()
         ProbeEvents.record(
             this,
             ProbeEvents.Kind.PROGRESS,
-            "Presenting identity ${runner.position + 1} of ${runner.size} and waiting for the car",
+            if (step == null) {
+                "Every step of this matrix has been run. Share the report."
+            } else {
+                "Step ${runner.position + 1} of ${runner.size} — ${step.id}: ${step.varies}"
+            },
         )
         val result = runner.runNext(transport)
         if (result == null) {
-            Log.i(TAG, "probe matrix already complete; report at ${runner.reportFile.absolutePath}")
+            Log.i(TAG, "matrix already complete; report at ${runner.reportFile.absolutePath}")
             updateNotification(getString(R.string.probe_complete))
             return
         }
@@ -179,15 +224,19 @@ public class ProjectionService : Service() {
         ProbeEvents.record(
             this,
             if (result.succeeded) ProbeEvents.Kind.PROGRESS else ProbeEvents.Kind.ATTENTION,
-            "Probe ${runner.position}/${runner.size} ${result.credentialName}: ${result.stage.name}" +
-                (result.alert?.let { " (${it.label})" } ?: ""),
+            // The code, on screen, in the car. It is the entire output of the
+            // status matrix, and a run whose only record of it is a file nobody
+            // opens until they get home is a run that cannot be adjusted while
+            // the car is still there.
+            "Step ${runner.position}/${runner.size} ${result.credentialName}: ${result.stage.name}, " +
+                "${result.verdictLabel()}" + (result.alert?.let { " (${it.label})" } ?: ""),
         )
         updateNotification(
             getString(
                 R.string.probe_progress,
                 runner.position,
                 result.credentialName,
-                result.stage.name,
+                result.verdictLabel(),
             )
         )
     }
@@ -235,8 +284,14 @@ public class ProjectionService : Service() {
      * acknowledged -- the disagreement is the bug.
      */
     private fun wireTrace(record: SessionTrace): AapLink.Listener = object : AapLink.Listener {
-        override fun onSend(channel: Int, messageId: Int, size: Int, encrypted: Boolean) {
-            record.sent(channel, messageId, size, encrypted)
+        override fun onSend(
+            channel: Int,
+            messageId: Int,
+            size: Int,
+            encrypted: Boolean,
+            control: Boolean,
+        ) {
+            record.sent(channel, messageId, size, encrypted, control)
         }
 
         override fun onReceive(message: org.openaap.core.IncomingMessage) {
@@ -301,12 +356,14 @@ public class ProjectionService : Service() {
             Log.i(TAG, "protocol $major.$minor agreed")
             event(ProbeEvents.Kind.PROGRESS, "Protocol $major.$minor agreed.")
             record.milestone("protocol $major.$minor agreed")
+            record.reached(SessionTrace.Reached.VERSION)
         }
 
         override fun onHandshakeComplete(protocol: String?, cipherSuite: String?) {
             Log.i(TAG, "TLS established: $protocol / $cipherSuite")
             event(ProbeEvents.Kind.PROGRESS, "TLS established: $protocol / $cipherSuite")
             record.milestone("TLS established: $protocol / $cipherSuite")
+            record.reached(SessionTrace.Reached.TLS)
         }
 
         override fun onAuthenticated() {
@@ -320,7 +377,17 @@ public class ProjectionService : Service() {
                 "Car accepted our certificate. Switching to encrypted framing and asking what it can do.",
             )
             record.milestone("car accepted our certificate; framing is encrypted from here")
+            record.reached(SessionTrace.Reached.AUTHENTICATED)
             updateNotification(getString(R.string.projection_active))
+        }
+
+        override fun onListening() {
+            Log.i(TAG, "listening; this variant does not open the discovery exchange")
+            event(
+                ProbeEvents.Kind.PROGRESS,
+                "Staying quiet on purpose to see whether the car leads the exchange.",
+            )
+            record.milestone("listening: this variant never asks")
         }
 
         override fun onDiscovered(response: DiscoveryResponse, channels: List<ResolvedChannel>) {
@@ -346,6 +413,7 @@ public class ProjectionService : Service() {
             Log.i(TAG, "channel ${channel.id} (${channel.kind}) open")
             event(ProbeEvents.Kind.PROGRESS, "Channel ${channel.id} (${channel.kind}) opened.")
             record.milestone("ch${channel.id} (${channel.kind}) opened")
+            record.reached(SessionTrace.Reached.CHANNEL_OPEN)
         }
 
         override fun onChannelRefused(channel: ResolvedChannel, result: ResultCode) {
@@ -435,23 +503,24 @@ public class ProjectionService : Service() {
         private const val TAG = "openaap.service"
         private const val MAX_CAUSE_DEPTH = 5
         private const val PREFERENCES = "openaap"
-        private const val KEY_PROBE = "probe"
+        private const val KEY_JOB = "job"
 
         /**
-         * Whether the next connection measures rather than projects.
+         * Defaults to [Job.STATUS].
          *
-         * Defaults to measuring. Until a head unit is known to accept an
-         * identity we are allowed to generate, a projection session cannot get
-         * past its first minute, and the measurement is the thing worth
-         * bringing back from the car.
+         * The default used to be the credential matrix, because nothing was
+         * known. Now nine of nine are known and identical, so a connection spent
+         * on a tenth identity is a connection spent on a constant.
          */
-        public fun probeMode(context: Context): Boolean =
-            context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-                .getBoolean(KEY_PROBE, true)
+        public fun job(context: Context): Job {
+            val stored = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                .getString(KEY_JOB, null)
+            return Job.entries.firstOrNull { it.name == stored } ?: Job.STATUS
+        }
 
-        public fun setProbeMode(context: Context, probe: Boolean) {
+        public fun setJob(context: Context, job: Job) {
             context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-                .edit().putBoolean(KEY_PROBE, probe).apply()
+                .edit().putString(KEY_JOB, job.name).apply()
         }
         private const val CHANNEL_ID = "projection"
         private const val NOTIFICATION_ID = 1

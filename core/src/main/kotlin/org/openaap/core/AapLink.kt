@@ -74,11 +74,27 @@ public class AapLink(
     private val transport: Transport,
     private val tls: AapTlsEngine,
     private val listener: Listener = Listener.NONE,
+    /**
+     * Whether control-channel messages carry the control flag.
+     *
+     * Our reading makes it redundant on channel 0 -- see
+     * [Messages.needsControlFlag] -- but that is a reading, not a measurement,
+     * and it is one of the things [SessionVariant] exists to vary. Overriding
+     * it here rather than in Messages keeps the default rule stated in one
+     * place and the experiment visible at the call site.
+     */
+    private val controlFlagOnControlChannel: Boolean = false,
 ) {
 
     /** Observation hook for tracing and diagnostics. */
     public interface Listener {
-        public fun onSend(channel: Int, messageId: Int, size: Int, encrypted: Boolean) {}
+        public fun onSend(
+            channel: Int,
+            messageId: Int,
+            size: Int,
+            encrypted: Boolean,
+            control: Boolean,
+        ) {}
         public fun onReceive(message: IncomingMessage) {}
 
         public companion object {
@@ -127,7 +143,9 @@ public class AapLink(
         val encrypt = encryptionActive && !forcePlaintext
         var flags = 0
         if (encrypt) flags = flags or FrameFlags.ENCRYPTED
-        if (Messages.needsControlFlag(channel, messageId)) flags = flags or FrameFlags.CONTROL
+        val control = Messages.needsControlFlag(channel, messageId) ||
+            (controlFlagOnControlChannel && channel == Messages.CONTROL_CHANNEL)
+        if (control) flags = flags or FrameFlags.CONTROL
 
         val payload = Messages.frame(messageId, body)
         val fragmentSize = minOf(FrameHeader.SEND_FRAGMENT_SIZE, transport.maxWriteSize)
@@ -155,7 +173,7 @@ public class AapLink(
                 transport.write(frame, 0, frame.size)
             }
         }
-        listener.onSend(channel, messageId, body.size, encrypt)
+        listener.onSend(channel, messageId, body.size, encrypt, control)
     }
 
     /** Sends raw TLS handshake bytes, which are always plaintext control traffic. */

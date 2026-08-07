@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicLong
 import org.openaap.core.IncomingMessage
 import org.openaap.core.ResolvedChannel
 import org.openaap.protocol.Messages
+import org.openaap.protocol.ProtoScan
 import org.openaap.protocol.proto.ChannelAdvert
 import org.openaap.protocol.proto.DiscoveryResponse
 
@@ -67,6 +68,9 @@ public class SessionTrace(private val context: Context) {
 
         /** Something went wrong. */
         FAULT,
+
+        /** A blind decode of a message body we may not model correctly. */
+        DECODE,
     }
 
     private val startedAt = System.currentTimeMillis()
@@ -81,6 +85,35 @@ public class SessionTrace(private val context: Context) {
     private var outcome: String = "session did not report an ending"
     private var succeeded = false
 
+    /**
+     * The furthest point the session reached, in the order it can reach them.
+     *
+     * Kept as an ordinal rather than derived from the transcript afterwards,
+     * because "how far did it get" is the whole result of a variant run and
+     * inferring it by pattern-matching log lines would break the first time a
+     * message is reworded.
+     */
+    private var furthest = Reached.NOTHING
+
+    /** Whether the head unit said anything at all. */
+    private var heardFromCar = false
+
+    /** How far a session got, in order. */
+    public enum class Reached {
+        NOTHING,
+        VERSION,
+        TLS,
+        AUTHENTICATED,
+        ASKED_DISCOVERY,
+        DISCOVERED,
+        CHANNEL_OPEN,
+        STREAMING,
+    }
+
+    private fun reach(point: Reached) {
+        if (point.ordinal > furthest.ordinal) furthest = point
+    }
+
     // ---------------------------------------------------------------- capture
 
     @Synchronized
@@ -90,6 +123,11 @@ public class SessionTrace(private val context: Context) {
     }
 
     public fun milestone(text: String): Unit = add(Kind.MILESTONE, text)
+
+    /** Marks progress through the sequence. Separate from the prose milestone. */
+    public fun reached(point: Reached) {
+        reach(point)
+    }
 
     public fun fact(text: String): Unit = add(Kind.FACT, text)
 
@@ -102,29 +140,54 @@ public class SessionTrace(private val context: Context) {
      * rather than the channel, because a video channel also carries setup and
      * focus traffic that is very much worth seeing individually.
      */
-    public fun sent(channel: Int, messageId: Int, size: Int, encrypted: Boolean) {
+    public fun sent(channel: Int, messageId: Int, size: Int, encrypted: Boolean, control: Boolean) {
         if (isMediaPayload(messageId)) {
+            reach(Reached.STREAMING)
             mediaMessages.incrementAndGet()
             mediaBytes.addAndGet(size.toLong())
             return
         }
+        if (messageId == Messages.DISCOVERY_REQUEST) reach(Reached.ASKED_DISCOVERY)
         add(
             Kind.SENT,
             "ch$channel ${Messages.describe(channel, messageId)} ${size}B" +
-                (if (encrypted) " encrypted" else " plaintext"),
+                (if (encrypted) " enc" else " plain") +
+                (if (control) " CONTROL" else ""),
         )
     }
 
     public fun received(message: IncomingMessage) {
+        heardFromCar = true
         if (message.messageId == Messages.MEDIA_ACK) {
             mediaAcks.incrementAndGet()
             return
         }
+        // The head unit's own flags, recorded verbatim. Whether it sets CONTROL
+        // on channel 0 is the fact that settles whether we should -- and it was
+        // being decoded and thrown away.
         add(
             Kind.RECEIVED,
             "ch${message.channel} ${Messages.describe(message.channel, message.messageId)} " +
-                "${message.body.size}B" + (if (message.wasEncrypted) " encrypted" else " plaintext"),
+                "${message.body.size}B" +
+                (if (message.wasEncrypted) " enc" else " plain") +
+                (if (message.hadControlFlag) " CONTROL" else ""),
         )
+
+        // Every control-channel body, decoded without reference to our schema.
+        //
+        // This is here because of eleven bytes. A head unit sends message 0x0004
+        // with an eleven-byte body, our schema declares one optional field, and
+        // that field is absent -- so the report said "empty verdict body" about
+        // eleven bytes nobody has documented. A schema written from the public
+        // record cannot show where the public record is wrong.
+        //
+        // Control-channel messages only: media payloads are H.264 and audio, so
+        // scanning them would be noise, and their contents are the one thing
+        // here that could be personal.
+        if (message.channel == Messages.CONTROL_CHANNEL && message.body.isNotEmpty()) {
+            add(Kind.DECODE, ProtoScan.describe(message.body, indent = "        "))
+            add(Kind.DECODE, "        raw ${ProtoScan.hex(message.body, 64)}")
+        }
     }
 
     private fun isMediaPayload(messageId: Int): Boolean =
@@ -141,6 +204,7 @@ public class SessionTrace(private val context: Context) {
      * in one message and is otherwise discarded.
      */
     public fun discovered(response: DiscoveryResponse, channels: List<ResolvedChannel>) {
+        reach(Reached.DISCOVERED)
         fact("head unit label   : ${response.unitLabel}")
         fact("head unit maker   : ${response.unitMaker}")
         fact("head unit model   : ${response.unitModel}")
@@ -226,6 +290,21 @@ public class SessionTrace(private val context: Context) {
         )
 
     /**
+     * Every session, kept.
+     *
+     * The single-file report overwrote itself, which cost the transcript of the
+     * one run in the matrix that mattered most -- the variant that stayed
+     * silent and still had the head unit hang up. Its detail was gone by the
+     * time the summary made it interesting. A matrix whose individual runs
+     * cannot be re-read is a table of conclusions with no evidence under them.
+     */
+    public val archiveFile: File
+        get() = File(
+            context.getExternalFilesDir(null) ?: context.filesDir,
+            "projection-sessions.txt",
+        )
+
+    /**
      * Writes the report.
      *
      * Called from the session's `finally`, so it runs whether the session ended
@@ -234,8 +313,21 @@ public class SessionTrace(private val context: Context) {
      */
     public fun write(): File {
         val file = reportFile
-        runCatching { file.writeText(render()) }
+        val rendered = render()
+        runCatching { file.writeText(rendered) }
             .onFailure { Log.w(TAG, "could not write the projection report", it) }
+        runCatching {
+            val archive = archiveFile
+            // Bounded, because a long test session is a dozen reconnections and
+            // each transcript is a few kilobytes. Old sessions are dropped from
+            // the front rather than the file being truncated mid-report, so
+            // what remains is always whole sessions.
+            if (archive.length() > MAX_ARCHIVE_BYTES) {
+                val kept = archive.readText().substringAfter(SESSION_SEPARATOR, "")
+                archive.writeText(kept)
+            }
+            archive.appendText(SESSION_SEPARATOR + rendered)
+        }.onFailure { Log.w(TAG, "could not append to the session archive", it) }
         return file
     }
 
@@ -318,7 +410,20 @@ public class SessionTrace(private val context: Context) {
         Kind.MILESTONE -> "**"
         Kind.FAULT -> "!!"
         Kind.FACT -> "  "
+        Kind.DECODE -> "::"
     }
+
+    /** What this session achieved, for the variant matrix. */
+    public fun outcome(): VariantRunner.Outcome = VariantRunner.Outcome(
+        milestone = furthest.name,
+        fault = outcome.takeIf { !succeeded },
+        durationMillis = System.currentTimeMillis() - startedAt,
+        streamed = mediaMessages.get() > 0,
+        // "Never spoke" is about the head unit, not about us. A variant that
+        // deliberately stays silent still counts as measured if the car said
+        // anything at all.
+        reachedNothing = !heardFromCar,
+    )
 
     private companion object {
         const val TAG = "openaap.trace"
@@ -331,6 +436,11 @@ public class SessionTrace(private val context: Context) {
          * say. Generous enough that no normal session comes close.
          */
         const val MAX_ENTRIES = 2000
+
+        /** Roughly a dozen sessions, which is one visit to a car. */
+        const val MAX_ARCHIVE_BYTES = 512 * 1024L
+
+        val SESSION_SEPARATOR: String = "\n\n" + "#".repeat(78) + "\n\n"
 
         val CLOCK = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
     }

@@ -32,6 +32,25 @@ public data class ProbeRecord(
     val negotiatedCipherSuite: String?,
     val headUnitCertificate: String?,
     /**
+     * Whether a verdict message arrived at all.
+     *
+     * Separate from [verdictStatus] on purpose. "No message", "a message with
+     * no status in it" and "a status" are three different statements about the
+     * head unit, and folding the first two together is the same move that made
+     * -3 read as an acceptance. Once was enough.
+     */
+    val verdictSeen: Boolean = false,
+    /**
+     * The verdict body in hex, exactly as the head unit sent it.
+     *
+     * The evidence rather than a reading of it. Every conclusion this matrix
+     * draws is a comparison of these strings, and a report that carried only
+     * our interpretation of them would be unfalsifiable by the person reading it.
+     */
+    val verdictBody: String? = null,
+    /** The status decoded as a raw varint. */
+    val verdictStatus: Long? = null,
+    /**
      * Every step of the exchange, in order.
      *
      * This was built by the probe and then thrown away, which was discovered
@@ -48,6 +67,14 @@ public data class ProbeRecord(
     /** True when the head unit never spoke, which is a transport fault rather than a verdict. */
     public val noContact: Boolean get() = stage == HandshakeProbe.Stage.NO_CONTACT.name
 
+    /** The verdict as a column value, keeping all three outcomes apart. */
+    public val verdictLabel: String
+        get() = when {
+            !verdictSeen -> "no verdict"
+            verdictStatus == null -> "verdict, no status"
+            else -> "status=$verdictStatus"
+        }
+
     public fun toJson(): String = JSONObject().apply {
         put("index", index)
         put("total", total)
@@ -61,6 +88,9 @@ public data class ProbeRecord(
         put("negotiatedTls", negotiatedTls ?: JSONObject.NULL)
         put("negotiatedCipherSuite", negotiatedCipherSuite ?: JSONObject.NULL)
         put("headUnitCertificate", headUnitCertificate ?: JSONObject.NULL)
+        put("verdictSeen", verdictSeen)
+        put("verdictBody", verdictBody ?: JSONObject.NULL)
+        put("verdictStatus", verdictStatus ?: JSONObject.NULL)
         put("transcript", org.json.JSONArray(transcript))
         put("timestamp", timestamp)
     }.toString()
@@ -82,6 +112,9 @@ public data class ProbeRecord(
                 negotiatedTls = json.optStringOrNull("negotiatedTls"),
                 negotiatedCipherSuite = json.optStringOrNull("negotiatedCipherSuite"),
                 headUnitCertificate = json.optStringOrNull("headUnitCertificate"),
+                verdictSeen = json.optBoolean("verdictSeen", false),
+                verdictBody = json.optStringOrNull("verdictBody"),
+                verdictStatus = if (json.isNull("verdictStatus")) null else json.optLong("verdictStatus"),
                 transcript = json.optJSONArray("transcript")?.let { array ->
                     (0 until array.length()).map { array.optString(it) }
                 }.orEmpty(),

@@ -1,0 +1,26 @@
+openaap projection variant matrix
+==============================================================================
+Each connection runs one variant of what the phone does after the car
+accepts its certificate. Nothing here is a measured fact about the
+protocol: every variant is a reading the public record leaves open, and
+the point is to find out which one this car agrees with.
+
+  1. baseline                  nothing: reproduces the failure as first observed
+  2. control-flag              sets the control flag on control-channel messages
+  3. quiet-first               waits 1s after authentication before speaking
+  4. listen-only               never asks; lets the head unit lead the exchange
+  5. plaintext-discovery       keeps framing in the clear past the auth message
+  6. control-flag-quiet        control flag after a 1s pause
+  7. control-flag-plaintext    control flag, and framing left in the clear
+  8. listen-only-control-flag  stays quiet, and flags what it does send
+
+Results
+------------------------------------------------------------------------------
+21:02:16  baseline                  ASKED_DISCOVERY                               3646 ms  session failed: USB read failed on usb:Android/Android Auto v1.0
+21:02:23  control-flag              VERSION                                        111 ms  protocol violation: peer sent ciphertext on channel 0 before the handshake completed
+21:02:35  quiet-first               ASKED_DISCOVERY                               7604 ms  session failed: USB read failed on usb:Android/Android Auto v1.0
+21:02:42  listen-only               AUTHENTICATED                                 2268 ms  session failed: USB read failed on usb:Android/Android Auto v1.0
+21:02:48  plaintext-discovery       ASKED_DISCOVERY                               4243 ms  session failed: USB read failed on usb:Android/Android Auto v1.0
+21:02:57  control-flag-quiet        VERSION                                        130 ms  protocol violation: peer sent ciphertext on channel 0 before the handshake completed
+21:03:04  control-flag-plaintext    VERSION                                       2689 ms  protocol violation: peer sent ciphertext on channel 0 before the handshake completed
+21:03:13  listen-only-control-flag  VERSION                                         96 ms  protocol violation: peer sent ciphertext on channel 0 before the handshake completed

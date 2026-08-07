@@ -18,12 +18,17 @@ It is signed with Android's standard debug key, which is deliberate for a
 sideloaded diagnostic tool: no secret lives in this repository and the build is
 reproducible from the tagged source.
 
-The app starts in **probe mode**. Plug the phone into a car's data USB port and it
-presents a series of generated identities to the head unit, one per connection,
-recording how far each got and what the head unit said when it stopped. The screen
-shows this live, which matters because the cable is in the car and `adb` cannot see
-the phone while it is happening. The full procedure is in
+The app starts in **status mode**. Plug the phone into a car's data USB port and it
+breaks the session in a different way on each connection, recording how far each
+attempt got and the exact bytes the head unit answered with. The screen shows this
+live, which matters because the cable is in the car and `adb` cannot see the phone
+while it is happening. The full procedure is in
 [field test protocols](docs/11-field-test-protocols.md).
+
+The certificate matrix that used to be the default is still there, one switch
+away. It has been run: nine identities, one refusal code, every time. What that
+code *means* is now the open question, and presenting a tenth certificate cannot
+answer it — see [the trust model](docs/03-trust-model.md).
 
 It does **not** project video or audio yet. It measures.
 

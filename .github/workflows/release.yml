@@ -65,17 +65,20 @@ jobs:
 
           ## What it does
 
-          Two modes, chosen with a button on the app's own screen — the cable is
+          Three jobs, chosen with a button on the app's own screen — the cable is
           in the car when it matters, so nothing important hides behind `adb`.
 
-          **Measuring** is the default. Each connection presents a different
-          generated certificate and records how far the session got and what the
-          car said when it stopped. What a production head unit actually checks
-          about a phone's certificate has had no published answer in eleven years
-          of community work.
+          **Certificates** presents nine generated identities, one per
+          connection, and records how each is answered. On the one car tested so
+          far this is answered: all nine refused, identically.
 
-          **Projecting** sends a picture to the car screen. Worth trying only
-          after a car has been seen accepting a certificate we generated.
+          **Status** holds the certificate constant and breaks the session seven
+          other ways — refusing before TLS, failing the handshake outright,
+          sending a malformed version response — to find out whether the refusal
+          code changes. This is the open question and the default.
+
+          **Projection** sends a picture to the car screen. Worth trying only
+          once a car has been seen accepting an identity.
 
           Results appear on the phone as they arrive, because a computer cannot
           see the phone while the interesting part is happening. **Share report**
@@ -85,16 +88,30 @@ jobs:
 
           ## What has actually been observed
 
-          One production head unit — a VW MIB2 — completed a TLS 1.2 handshake
-          and declared the session authenticated against certificates we
-          generated ourselves, including one whose validity window had not begun.
-          It presented no certificate of its own, though we asked for one.
+          **A correction first.** Releases before 0.6.0 said this head unit had
+          accepted certificates we generated. That was wrong and is retracted.
+          It was refusing every one of them, and our decoder turned the refusal
+          into an acceptance: the car answers with `status = -3`, our schema
+          declared that field as an enum whose members are 0 and 1, and proto2
+          reports an out-of-range enum value as an *absent* field — which the
+          code then read as "nothing to object to".
 
-          Read that as promising rather than settled. The run that produced it
-          also exposed two defects in this app, both since fixed: a silent
-          reconnect consumed identities that were never measured, and an
-          unparseable verdict was being read as acceptance. A confirming run has
-          not happened yet.
+          What a production VW MIB2 does, corrected: it completes a TLS 1.2
+          handshake against a certificate we generate, adapting its cipher suite
+          to an elliptic-curve identity, then refuses the session with
+          `status = -3` and drops USB a few seconds later. Nine identities
+          varying structure, chain depth, validity window, key size and key
+          algorithm all got the same refusal. It speaks AAP protocol 1.0.
+
+          **What `-3` means is unknown.** No public source documents it. It may
+          be "certificate refused", in which case it locates the trust wall
+          exactly; it may be generic, in which case it locates nothing. This
+          build carries the matrix that tries to tell those apart, by holding
+          the certificate constant and breaking the session seven other ways.
+
+          There is no positive control and there cannot be one — a session this
+          car accepts would need a Google-signed certificate this project will
+          not obtain. Every result is a comparison between kinds of failure.
 
           ## About the signature
 
@@ -117,8 +134,11 @@ jobs:
           interface rather than the phone's screen, so the limitation is
           narrower than it sounds.
 
-          **The projection path has never run against real hardware.** The
-          measurement path has.
+          **The projection path has run against real hardware and never
+          streamed a frame.** Sessions reach authentication and are refused
+          there, so nothing downstream of that — encoder, renderer, touch
+          input — has ever been exercised by a car. It is written and tested
+          against an emulator, and untested where it counts.
           NOTES
           sed -i "s|OWNER_REPO|${GITHUB_REPOSITORY}|" release-notes.md
           sed -i "s|VERSION|${{ steps.build.outputs.version }}|" release-notes.md

@@ -14,22 +14,35 @@ Nothing in this directory is used by the build or the tests. It is a record.
 | Head unit | VW MIB2, wired App-Connect, USB accessory `Android / Android Auto v1.0` |
 | Protocol | AAP 1.0 |
 | TLS | 1.2, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256` (`ECDSA` variant for the EC identity) |
-| Result | **9 of 9 identities authenticated, including an expired certificate** |
+| Result | **9 of 9 identities refused with `status = -3`** — see the retraction below |
 
 - [`2026-08-06-vw-polo-mib2-records.jsonl`](2026-08-06-vw-polo-mib2-records.jsonl)
   — one JSON object per attempt, with the full handshake transcript
 - [`2026-08-06-vw-polo-mib2-report.txt`](2026-08-06-vw-polo-mib2-report.txt)
   — the rendered report as shared from the phone
 
-### Reading it
+### Retraction
 
-The load-bearing detail is not the `AUTHENTICATED` verdict — the head unit sent
-an empty verdict body every time, so that reading is an inference. It is the
-byte counts in the transcripts. Our outbound flight varies from 560 to 2105
-bytes with the certificate being presented; the head unit's two inbound flights
-are 517 and 126 bytes in every single run. Nine different certificates, one
-expired and one signed by an authority we invented, produced byte-identical
-responses.
+**These files say `AUTHENTICATED` nine times. That was our decoder being wrong,
+not the car accepting anything.**
+
+The head unit answered every run with message `0x0004` carrying
+`08 fd ff ff ff ff ff ff ff ff 01` — field 1, varint, **-3**. Our schema
+declares that field as a proto2 enum with members 0 and 1, and proto2 reports an
+out-of-range enum value as an *absent* field; the code then read absent as no
+objection. The car was refusing us the whole time.
+
+The files are kept exactly as the phone produced them. Correcting a raw capture
+after the fact would destroy the only thing it is good for. See
+[the trust model](../../docs/03-trust-model.md) for the full retraction, and
+`UnknownEnumTest` for the eleven bytes pinned as a test.
+
+### What is still worth reading in them
+
+The byte counts. Our outbound flight varies from 560 to 2105 bytes with the
+certificate presented; the head unit's two inbound flights are 517 and 126 bytes
+in every single run. That invariance is real — it just means the car refuses
+every certificate identically, rather than accepting them.
 
 ### An earlier run, deliberately not archived
 

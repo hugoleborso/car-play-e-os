@@ -3,77 +3,100 @@
 This is the document that decides whether the project succeeds. Everything else
 is engineering with known answers.
 
-## Answered, on 6 August 2026
+## Retracted, on 6 August 2026
 
-**A production VW MIB2 accepted all nine generated identities, including an
-expired one.** Measured with the probe in this repository, on a Fairphone 6
-running /e/OS, in a 2017 Polo. The raw records are in
-[`testdata/field/`](../testdata/field/).
+**An earlier version of this document claimed that a production VW MIB2
+accepted all nine generated identities. That claim was wrong, and the error was
+ours.** It is retracted in full. The corrected reading is below; the retracted
+text is preserved in the git history of this file rather than deleted, because a
+project whose method is "stop guessing" cannot quietly tidy away the guess it
+got wrong.
 
-| Identity | What it varies | Result |
-| --- | --- | --- |
-| `self-signed-v1` | the structure real endpoints use | AUTHENTICATED |
-| `self-signed-v3` | v3 with extensions | AUTHENTICATED |
-| `own-ca-v1` | a real two-level chain to our own CA | AUTHENTICATED |
-| `authority-name-match` | authority pinned by name rather than key | AUTHENTICATED |
-| `expired` | **validity window already past** | AUTHENTICATED |
-| `not-yet-valid` | validity window not yet begun | AUTHENTICATED |
-| `long-validity` | decades, as real certificates use | AUTHENTICATED |
-| `rsa-4096` | key size above the usual 2048 | AUTHENTICATED |
-| `ec-p256` | elliptic curve rather than RSA | AUTHENTICATED |
+### What the head unit actually said
 
-The finding does not rest on decoding the head unit's verdict, and that matters,
-because the verdict body was empty in all nine runs. It rests on something
-harder to misread: **the head unit's bytes never changed.**
+Every session, including all nine probe runs, ended with the head unit sending
+message `0x0004` with this body:
 
 ```
-                        r1 in   r1 out   r2 in   r2 out
-self-signed-v1            517     1141     126       51
-self-signed-v3            517     1243     126       51
-own-ca-v1                 517     1913     126       51
-authority-name-match      517     2105     126       51
-expired                   517     1142     126       51
-ec-p256                   517      560     126       51
+08 fd ff ff ff ff ff ff ff ff 01
 ```
 
-Our outbound flight ranges from 560 to 2105 bytes, tracking the size and type of
-each certificate — so the identities really did differ and really were sent. The
-head unit's `ClientHello` is 517 bytes every time and its second flight is 126
-bytes every time. Nine different certificates, one of them expired, one signed
-by an authority we invented, produced **byte-identical** responses. There is no
-certificate-dependent branch in this head unit at this stage of the session.
+That is field 1, wire type 0, varint — and the varint is the sign-extended
+64-bit encoding of **-3**. The head unit answered every generated certificate
+with `status = -3`, then tore down USB accessory mode a few seconds later. It
+was refusing us the whole time.
 
-Two further facts fall out of the same data:
+### Why we read a refusal as an acceptance
 
-- **No mutual TLS.** We set `wantClientAuth`, so a `CertificateRequest` went out
-  in every run. 126 bytes is `ClientKeyExchange` + `ChangeCipherSpec` +
-  `Finished` and leaves no room for a certificate. The head unit never sent one.
-- **A real TLS stack, not a stub.** The elliptic-curve identity negotiated
-  `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` while the rest got
-  `TLS_ECDHE_RSA_…`. It adapts correctly to what it is offered. It simply does
-  not judge it.
+Our schema declares that field as a proto2 enum with members `RESULT_OK = 0` and
+`RESULT_FAILED = 1`. **Proto2 stores an out-of-range enum value as an unknown
+field**: the bytes survive on the wire, but the generated `hasResult()` reports
+false, exactly as it would for a field the peer never sent. The code then read
+absent as "nothing to object to" and defaulted to OK.
 
-### What this does not establish
+So the report said "empty verdict body" about eleven bytes that contained an
+explicit rejection, and the on-screen result said `AUTHENTICATED` nine times.
 
-**That the session is usable.** The probe stops at the verdict by design.
-Nothing here shows the head unit will then answer a discovery request, open
-channels, or display a frame. That is the next measurement, and it is what
-projection mode exists to take.
+A closed enum cannot represent what a peer actually said. In a protocol
+reconstructed from observation, values outside our enumeration are not an edge
+case — they are the ordinary way of finding out the enumeration is incomplete.
+The verdict is now read as a raw varint (`AuthVerdict`), and *absent* is kept
+distinct from *zero*, because one is a head unit that said nothing and the other
+is one that said OK. `UnknownEnumTest` pins the behaviour with the exact eleven
+bytes the car sent.
 
-**Anything about head units in general.** This is one unit in one car. "MIB2
-does not validate" is not supported by n=1; "this MIB2 did not validate" is.
-The 2021 report below, from a 2019 Seat Ateca in the same corporate family,
-says the opposite — and both can be true of different units, different model
-years, or different firmware.
+### What survives, and what does not
 
-**That the empty verdict body means `RESULT_OK`.** It is read as acceptance
-because the message id is itself the signal and the `result` field is optional.
-An implementation that meant something else by it would be indistinguishable
-here. The byte-level invariance above is the claim that survives either reading.
+**Does not survive:** any claim that this head unit accepts generated
+certificates, that it skips date checks, or that it validates nothing. All of
+that rested on reading `-3` as `0`.
 
-The rest of this document was written before that measurement. It is kept as
-written, because the reasoning that led to a wrong prediction is worth more than
-a document quietly edited to have been right. The prediction was `unknown_ca`.
+**Survives, because it never depended on the verdict:** the head unit completes
+a TLS 1.2 handshake with a certificate we generated, negotiating
+`TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256` and adapting to `ECDHE_ECDSA` for an
+elliptic-curve identity. It speaks AAP protocol 1.0 and identifies over USB as
+`Android / Android Auto v1.0`. Its two inbound handshake flights are 517 and 126
+bytes regardless of what we present.
+
+**Also retracted, on the same day and for the same kind of reason:** the claim
+that the head unit "presents no certificate of its own despite our
+`CertificateRequest`". It presents none, but there was no request. `AapTlsEngine`
+set `wantClientAuth = true` and then `needClientAuth = false`, and those are two
+setters for one field in JSSE — the second cleared the first. Every session this
+project has run, including all nine credential probes, asked the head unit for
+nothing. A peer that sends no certificate when none was requested is behaving
+correctly and tells us nothing.
+
+The pattern is the same as the `-3` error and worth naming as such: a fact was
+recorded about what the code was believed to do rather than about what crossed
+the wire. It was caught by a test that made a peer which certainly had a
+certificate refuse to send one — the calibration step, again, doing the work
+that reading the code did not.
+
+**Newly established:** the refusal code is `-3`, and it is identical across nine
+certificates that varied structure, chain depth, validity window, key size and
+key algorithm. That invariance now reads the other way round: the head unit's
+answer does not depend on the certificate *because it refuses all of them the
+same way*. Whether it would accept a Google-signed one is untested — we have
+never had one to present.
+
+**Still unknown, and the next thing to measure:** what `-3` means. See
+[The status matrix](#the-status-matrix) below. Until that is settled, `-3`
+supports no conclusion about certificates at all.
+
+### The methodological point, kept deliberately
+
+The retracted claim was hedged in the right places and still wrong. It said the
+finding did not rest on decoding the verdict but on the head unit's bytes never
+changing. That argument was sound as far as it went and did not go far enough:
+byte-invariance distinguishes "the certificate is not what decides" from
+nothing else. It cannot tell *accepts everything* from *refuses everything*, and
+the text asserted it could.
+
+The lesson is not "hedge harder". It is that a decoder which cannot represent
+what the peer said will quietly substitute something it can, and no amount of
+care in the surrounding prose detects that. What detected it was dumping the raw
+bytes and decoding them without reference to our own schema.
 
 ## The short version
 
@@ -193,6 +216,78 @@ park can be trusted to mean what it says.
 
 **Deliberately not in the matrix:** the leaked phone-side certificate. It would
 give a cleaner answer and it would poison the project.
+
+## The status matrix
+
+The certificate matrix has been run and it produced one number, nine times. That
+number is the whole result, and nobody knows what it says.
+
+`-3` has exactly two readings, and the evidence in hand cannot separate them:
+
+- **specific** — "your certificate is not one I trust". Then the number locates
+  the wall precisely, and nine identical answers mean the wall is above all nine
+  identities.
+- **generic** — "something went wrong". Then the number locates nothing, and
+  nine identical answers are nine readings of an uninformative constant.
+
+Presenting a tenth certificate cannot tell these apart, because both readings
+predict the same answer to it. What can is breaking the session in a way that
+has nothing to do with the certificate and seeing whether the number moves.
+
+### What is reachable, and what is not
+
+The verdict arrives the instant the TLS handshake settles, with no message from
+the phone in between. **Only three things can reach it:** the version exchange,
+the handshake, and the certificate inside the handshake. That single fact
+disqualifies the two experiments that suggest themselves first — sending a
+malformed message after TLS, and sending nothing after TLS — because by then the
+head unit has already sent the number. The malformed-message idea survives by
+being moved to the version response, which is the last message the phone
+controls before the verdict; the say-nothing idea has already been run in the
+projection variant matrix and ended in the same teardown.
+
+Cipher-suite variants are excluded on their own merits. The phone is the TLS
+server and therefore chooses the suite out of what the head unit offered: a
+suite it did not offer cannot be selected, and one it did offer it can hardly
+object to afterwards. The variant either degenerates into "no handshake" or asks
+the car whether it dislikes something it volunteered.
+
+### The matrix
+
+| Step | Varies | What a *different* code would prove |
+| --- | --- | --- |
+| `baseline` | nothing, except that the certificate request is now really sent | reference: re-establishes -3 with the corrected decoder |
+| `no-peer-cert-request` | we do not ask for a certificate — what all nine earlier runs actually did | -3 was the car reporting *its own* failure to authenticate, not a verdict on ours |
+| `invite-car-certificate` | we name the authority the car's certificate chains to as one we accept | the car's silence about its own identity was our doing — and we come home with its certificate either way |
+| `version-status-mismatch` | the version response says the versions disagree | a verdict here is reached with no certificate in evidence, so -3 cannot mean "certificate refused" |
+| `no-certificate` | we present none, so TLS cannot complete | whether the verdict requires a completed handshake at all |
+| `version-major-mismatch` | we announce a major version the car cannot speak | whether the car compares versions itself or trusts our status word |
+| `version-truncated` | four bytes where six are defined | separates "could not understand you" from "understood and refused you" |
+
+Run in that order. A visit to a car ends when it ends, and the rows whose result
+would most change what we believe are the ones at the top.
+
+An eighth row was designed and then measured out of existence. A certificate
+with an **empty subject** would ask whether the head unit's rejection comes from
+its parser or its policy — and the platform will not parse one back:
+`Empty subject DN not allowed in v1 certificate`. It is permitted on v3 only
+alongside a critical subject alternative name, which varies the structure and
+the name together and could attribute neither. `TestPkiTest` pins the constraint
+so the idea is not designed a second time.
+
+### The limit of the whole exercise, stated plainly
+
+**There is no positive control.** Producing a session this head unit accepts
+needs a certificate signed by Google, which this project will not obtain. So the
+code for success cannot be measured, `0` remains an assumption read off our own
+schema, and every result here is a comparison *between kinds of failure*. If the
+number never moves, that is a real finding about `-3` — it is a general failure
+indicator and says nothing about the trust wall — but it is not, and cannot be
+turned into, evidence that the wall is somewhere else.
+
+That limit is also the argument for the QNX route below. Two hours with a
+diagnostic tool reads the meaning of `-3` out of the binary that produces it,
+and no number of connections in a car park can do the same.
 
 ## What the head unit tells us about itself
 
